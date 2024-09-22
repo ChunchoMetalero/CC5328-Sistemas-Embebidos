@@ -359,8 +359,8 @@ SensorData bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc) {
     uint8_t addr_par_p9_lsb = 0x9E, addr_par_p9_msb = 0x9F;
     uint8_t addr_par_p10_lsb = 0xA0;
 
-    uint16_t par_p1, par_p2, par_p3, par_p4, par_p5;
-    uint16_t par_p6, par_p7, par_p8, par_p9, par_p10;
+    uint32_t par_p1, par_p2, par_p3, par_p4, par_p5;
+    uint32_t par_p6, par_p7, par_p8, par_p9, par_p10;
 
     uint8_t par_p[16];
 
@@ -408,7 +408,7 @@ SensorData bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc) {
     calc_temp = (((t_fine * 5) + 128) >> 8);
     
     // Calculo de la presion
-    int32_t var1_p, var2_p, var3_p;
+    uint32_t var1_p, var2_p, var3_p;
     int calc_press;
 
     var1_p = ((int32_t)t_fine >> 1) - 64000;  
@@ -482,8 +482,6 @@ void bme_read_data(void) {
         bme_i2c_read(I2C_NUM_0, &forced_press_addr[2], &tmp2, 1);
         press_adc = press_adc | (tmp2 & 0xf0) >> 4;
 
-        printf("ADC Temp: %ld\n", temp_adc);
-        printf("ADC Press: %ld\n", press_adc);
 
         uint32_t temp = bme_temp_celsius(temp_adc, press_adc).calc_temp;
         uint32_t press = bme_temp_celsius(temp_adc, press_adc).press_comp;
