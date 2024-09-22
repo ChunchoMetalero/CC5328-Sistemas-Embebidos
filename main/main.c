@@ -8,6 +8,9 @@
 #include "driver/i2c.h"
 #include "driver/uart.h"
 #include "esp_log.h"
+#include "esp_system.h"
+#include "nvs_flash.h"
+#include "nvs.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "math.h"
@@ -49,13 +52,12 @@ typedef struct {
     int press_comp;
 } SensorData;
 
-
+int window_size = 10;
 
 // Ventanas de datos
 float *temperature_window;
 float *pressure_window;
 
-int window_size = 10;
 
 // -------------------- COM Serial --------------------- //
 
@@ -63,6 +65,92 @@ int window_size = 10;
 
 //------------------------------------------------------//
 
+// -------------------- NVS ----------------------------//
+
+void read_nvs_value() {
+    esp_err_t err;
+
+    // Iniciar la NVS
+    err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        // Si la partición NVS está dañada o se ha actualizado, hay que formatearla
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(err);
+
+    // Abre el manejador de NVS para leer o escribir en la NVS
+    nvs_handle_t nvs_handle;
+    err = nvs_open("storage", NVS_READWRITE, &nvs_handle);
+    if (err != ESP_OK) {
+        printf("Error abriendo NVS!\n");
+    } else {
+        // Intenta leer el valor de "window_size" almacenado en la NVS
+        int32_t value = 0;  // Temporal para el valor almacenado
+        err = nvs_get_i32(nvs_handle, "window_size", &value);
+        
+        if (err == ESP_OK) {
+            window_size = value;
+            printf("Valor de 'window_size' leído de la NVS: %d\n", window_size);
+        } else if (err == ESP_ERR_NVS_NOT_FOUND) {
+            printf("No se encontró el valor en la NVS, asignando valor por defecto: %d\n", window_size);
+            // Guarda el valor por defecto en la NVS
+            err = nvs_set_i32(nvs_handle, "window_size", window_size);
+            if (err == ESP_OK) {
+                err = nvs_commit(nvs_handle);  // Asegúrate de que se escriban los cambios
+                if (err == ESP_OK) {
+                    printf("Valor por defecto almacenado en la NVS\n");
+                }
+            }
+        } else {
+            printf("Error leyendo el valor de 'window_size' de la NVS!\n");
+        }
+
+        // Cerrar el manejador de NVS
+        nvs_close(nvs_handle);
+    }
+}
+
+void modify_nvs_value(int new_value) {
+    esp_err_t err;
+
+    // Iniciar la NVS
+    err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        // Si la partición NVS está dañada o se ha actualizado, hay que formatearla
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(err);
+
+    // Abre el manejador de NVS para leer o escribir en la NVS
+    nvs_handle_t nvs_handle;
+    err = nvs_open("storage", NVS_READWRITE, &nvs_handle);
+    if (err != ESP_OK) {
+        printf("Error abriendo NVS!\n");
+    } else {
+        // Modifica el valor de "window_size" en la NVS
+        err = nvs_set_i32(nvs_handle, "window_size", new_value);
+        if (err == ESP_OK) {
+            // Guarda los cambios en la NVS
+            err = nvs_commit(nvs_handle);
+            if (err == ESP_OK) {
+                printf("Valor de 'window_size' modificado a: %d\n", new_value);
+            } else {
+                printf("Error guardando los cambios en la NVS!\n");
+            }
+        } else {
+            printf("Error modificando el valor de 'window_size' en la NVS!\n");
+        }
+
+        // Cierra el manejador de NVS
+        nvs_close(nvs_handle);
+    }
+}
+
+
+
+//------------------------------------------------------//
 esp_err_t sensor_init(void) {
     int i2c_master_port = I2C_NUM_0;
     i2c_config_t conf;
@@ -489,6 +577,7 @@ void bme_read_data(void) {
         pressure_window[i] = (float)press / 100;
         printf("Temperatura: %f\n", temperature_window[i]);
         printf("Presión: %f\n", pressure_window[i]);
+        printf("\n");
     }
 }
 
@@ -511,6 +600,8 @@ int change_window_size(int new_size){
     printf("Cambiando tamaño de ventana\n");
     printf("Tamaño de ventana actual: %d\n", window_size);
     printf("Nuevo tamaño de ventana: %d\n", new_size);
+    window_size = new_size;
+    modify_nvs_value(new_size);
     temperature_window = (float *)realloc(temperature_window, sizeof(float) * new_size);
     pressure_window = (float *)realloc(pressure_window, sizeof(float) * new_size);
     if (temperature_window == NULL || pressure_window == NULL){
@@ -521,7 +612,7 @@ int change_window_size(int new_size){
     return 0;
 }
 
-void calculate_rms(){
+void calculate_rms() {
     printf("Calculando RMS\n");
     float sum = 0;
     for (int i = 0; i < window_size; i++){
@@ -544,7 +635,9 @@ void app_main(void) {
     bme_softreset();
     bme_get_mode();
     bme_forced_mode();
+    read_nvs_value();
     create_window_data();
     bme_read_data();
     calculate_rms();
+    close_connection();
 }
