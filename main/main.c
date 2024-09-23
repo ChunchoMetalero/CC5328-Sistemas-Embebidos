@@ -680,10 +680,6 @@ int initilize_esp_bme(void) {
     bme_get_mode();
     bme_forced_mode();
     uart_setup();
-    read_nvs_value();
-    create_window_data();
-    uart_setup(); // Uart setup
-
     return 0;
 }
 
@@ -718,7 +714,6 @@ void send_window_data(void){
 
             const char* dataToSend = (const char*)data;
 
-
             int len = sizeof(float)*4;
 
             uart_write_bytes(UART_NUM, dataToSend, len);
@@ -745,10 +740,13 @@ void wait_menu(void){
             } 
             else if (strcmp(dataResponse, "2") == 0){
                 char new_window_size[4];
-                int rLen = serial_read(new_window_size, 4);
-                if (rLen > 0){
-                    int new_size = atoi(new_window_size);
-                    change_window_size(new_size);
+                while (1){
+                    int rLen = serial_read(new_window_size, 4);
+                    if (rLen > 0){
+                        int new_size = atoi(new_window_size);
+                        change_window_size(new_size);
+                        break;
+                    }
                 }
             }
             else if (strcmp(dataResponse, "3") == 0){
@@ -777,8 +775,54 @@ void handshake(void){
     }
 }
 
+void send_window_size(void){
+    char dataResponse1[6];
+    while (1)
+    {
+        int rLen = serial_read(dataResponse1, 6);
+        if (rLen > 0)
+        {
+            if (strcmp(dataResponse1, "ready") == 0)
+            {
+                break;
+            }
+        }
+    }
+
+    // Data sending, can be stopped receiving an END between sendings
+    char dataResponse2[4];
+    read_nvs_value();
+    while (1)
+    {
+
+        float float_window_size = (float)window_size;
+
+        float data[3];
+        
+        data[0] = float_window_size;
+        data[1] = float_window_size;
+
+        const char* dataToSend = (const char*)data;
+
+        int len = sizeof(float)*4;
+
+        uart_write_bytes(UART_NUM, dataToSend, len);
+
+        int rLen = serial_read(dataResponse2, 3);
+        if (rLen > 0) {
+
+            if (strcmp(dataResponse2, "END") == 0) {
+                break;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(300));  // Delay for 1 second
+    }
+}
+
 void app_main(void) {
     initilize_esp_bme();
     handshake();
+    send_window_size();
+    create_window_data();
     wait_menu();
 }
