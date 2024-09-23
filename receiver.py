@@ -21,15 +21,6 @@ def receive_response():
     response = ser.readline()
     return response
 
-def receive_data_size():
-    """ Funcion que recibe tres floats (fff) de la ESP32 
-    y los imprime en consola """
-    data = receive_response()
-    data = unpack("ffff", data)
-    print("Temperature: ", data[0])
-    print("Pressure: ", data[1])
-    return data
-
 # Antiguo receive_data_size
 #
 # def receive_data_size():
@@ -37,7 +28,16 @@ def receive_data_size():
 #     y los imprime en consola """
 #     data = receive_response()
 #     data = unpack("ffff", data)
+#     print("Temperature: ", data[0])
+#     print("Pressure: ", data[1])
 #     return data
+
+def receive_data_size():
+    """ Funcion que recibe tres floats (fff) de la ESP32 
+    y los imprime en consola """
+    data = receive_response()
+    data = unpack("ffff", data)
+    return data
 
 def send_end_message():
     """ Funcion para enviar un mensaje de finalizacion a la ESP32 """
