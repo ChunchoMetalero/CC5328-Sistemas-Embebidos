@@ -48,17 +48,23 @@ float task_delay_ms = 1000;
 
 
 typedef struct {
+    // Datos de temperatura y presión
     int calc_temp;
     int press_comp;
+
+    // RMS 
     float rms_temp;
     float rms_press;
+
+    // Ventanas de datos
+    float *temperature_window;
+    float *pressure_window;
 } SensorData;
 
 int window_size = 10;
 
-// Ventanas de datos
-float *temperature_window;
-float *pressure_window;
+SensorData sensor_data;
+
 
 
 // -------------------- COM Serial --------------------- //
@@ -414,7 +420,7 @@ int bme_check_forced_mode(void) {
     return (tmp == 0b001 && tmp2 == 0x59 && tmp3 == 0x00 && tmp4 == 0b100000 && tmp5 == 0b01010101);
 }
 
-SensorData bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc) {
+void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc) {
     // Datasheet[23]
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=23
 
@@ -522,10 +528,8 @@ SensorData bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc) {
     var3_p = ((int32_t)(calc_press >> 8) * (int32_t)(calc_press >> 8) * (int32_t)(calc_press >> 8) * (int32_t)par_p10) >> 17;  
     calc_press = (int32_t)(calc_press) + ((var1_p + var2_p + var3_p + ((int32_t)par_p7 << 7)) >> 4);    
 
-    SensorData data;
-    data.calc_temp = calc_temp;
-    data.press_comp = calc_press;
-    return data;
+    sensor_data.calc_temp = calc_temp;
+    sensor_data.press_comp = calc_press;
 }
 
 
@@ -541,7 +545,7 @@ void bme_get_mode(void) {
     printf("Valor de BME MODE: %2X \n\n", tmp);
 }
 
-void bme_read_data(void) {
+void bme_read_data() {
     // Datasheet[23:41]
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=23
 
@@ -572,25 +576,26 @@ void bme_read_data(void) {
         bme_i2c_read(I2C_NUM_0, &forced_press_addr[2], &tmp2, 1);
         press_adc = press_adc | (tmp2 & 0xf0) >> 4;
 
+        bme_temp_celsius(temp_adc, press_adc);
+        uint32_t temp = sensor_data.calc_temp;
+        uint32_t press = sensor_data.press_comp;
 
-        uint32_t temp = bme_temp_celsius(temp_adc, press_adc).calc_temp;
-        uint32_t press = bme_temp_celsius(temp_adc, press_adc).press_comp;
-        temperature_window[i] = (float)temp / 100;
-        pressure_window[i] = (float)press / 100;
-        printf("Temperatura: %f\n", temperature_window[i]);
-        printf("Presión: %f\n", pressure_window[i]);
+        sensor_data.temperature_window[i] = (float)temp / 100;
+        sensor_data.pressure_window[i] = (float)press / 100;
+        printf("Temperatura: %f\n", sensor_data.temperature_window[i]);
+        printf("Presión: %f\n", sensor_data.pressure_window[i]);
         printf("\n");
     }
 }
 
 
 // ------------ App ------------ //
-int create_window_data(void){
+int create_window_data(){
     printf("Creando ventana de datos\n");
     printf("Tamaño de ventana: %d\n", window_size);
-    temperature_window = (float *)malloc(sizeof(float) * window_size);
-    pressure_window = (float *)malloc(sizeof(float) * window_size);
-    if (temperature_window == NULL || pressure_window == NULL){
+    sensor_data.temperature_window = (float *)malloc(sizeof(float) * window_size);
+    sensor_data.pressure_window = (float *)malloc(sizeof(float) * window_size);
+    if (sensor_data.temperature_window == NULL || sensor_data.pressure_window == NULL){
         return 1;
         printf("Error al crear ventana de datos\n");
     }
@@ -604,9 +609,9 @@ int change_window_size(int new_size){
     printf("Nuevo tamaño de ventana: %d\n", new_size);
     window_size = new_size;
     modify_nvs_value(new_size);
-    temperature_window = (float *)realloc(temperature_window, sizeof(float) * new_size);
-    pressure_window = (float *)realloc(pressure_window, sizeof(float) * new_size);
-    if (temperature_window == NULL || pressure_window == NULL){
+    sensor_data.temperature_window = (float *)realloc(sensor_data.temperature_window, sizeof(float) * new_size);
+    sensor_data.pressure_window = (float *)realloc(sensor_data.pressure_window, sizeof(float) * new_size);
+    if (sensor_data.temperature_window == NULL || sensor_data.pressure_window == NULL){
         return 1;
         printf("Error al cambiar tamaño de ventana de datos\n");
     }
@@ -614,13 +619,13 @@ int change_window_size(int new_size){
     return 0;
 }
 
-void calculate_rms() {
+void calculate_rms(void) {
     printf("Calculando RMS\n");
     float sum_t = 0;
     float sum_p = 0;
     for (int i = 0; i < window_size; i++){
-        sum_t += pow(temperature_window[i], 2);
-        sum_p += pow(pressure_window[i], 2);
+        sum_t += pow(sensor_data.temperature_window[i], 2);
+        sum_p += pow(sensor_data.pressure_window[i], 2);
     }
     float rms_t = sqrt(sum_t / window_size);
     float rms_p = sqrt(sum_p / window_size);
@@ -629,24 +634,36 @@ void calculate_rms() {
     printf("\n");
     printf("RMS_p: %f\n", rms_p);
 
+    sensor_data.rms_temp = rms_t;
+    sensor_data.rms_press = rms_p;
 }
 
 int close_connection(void) {
     printf("Cerrando conexión\n");
-    free(temperature_window);
-    free(pressure_window);
+    free(sensor_data.temperature_window);
+    free(sensor_data.pressure_window);
     return 0;
 }
 
-void app_main(void) {
+int initilize_esp_bme(void) {
     ESP_ERROR_CHECK(sensor_init());
     bme_get_chipid();
     bme_softreset();
     bme_get_mode();
     bme_forced_mode();
     read_nvs_value();
-    create_window_data();
+    return 0;
+}
+
+void send_window_data(void){
     bme_read_data();
     calculate_rms();
+}
+
+
+void app_main(void) {
+    initilize_esp_bme();
+    create_window_data();
+    send_window_data();
     close_connection();
 }

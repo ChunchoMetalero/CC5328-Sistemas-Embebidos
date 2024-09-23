@@ -8,12 +8,14 @@ BAUD_RATE = 115200  # Debe coincidir con la configuracion de la ESP32
 # Se abre la conexion serial
 ser = serial.Serial(PORT, BAUD_RATE, timeout = 1)
 
-window_size = 10
+window_size = 10 # Tamaño de la ventana de datos
 
 # Menu de opciones
 def menu():
+    global window_size
+    print();
     print('Menu: A continuación se presentan las opciones disponibles')
-    print(f'1. Solicitar una ventana de datos: el tamaño actual de la ventana es {window_size}')
+    print(f'1. Solicitar una ventana de datos: el tamaño actual de la ventana es de {window_size}')
     print('2. Cambiar el tamaño de la ventana de datos')
     print('3. Cerrar la conexión')
     option = int(input('Ingrese una opción: '))
