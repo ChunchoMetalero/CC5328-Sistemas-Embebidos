@@ -19,7 +19,7 @@ def send_message(message):
 def receive_response():
     """ Funcion para recibir un mensaje de la ESP32 """
     response = ser.readline()
-º   21    return response
+    return response
 
 def receive_data():
     """ Funcion que recibe tres floats (fff) de la ESP32 
