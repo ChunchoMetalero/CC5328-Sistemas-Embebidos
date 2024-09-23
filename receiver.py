@@ -131,6 +131,7 @@ def menu():
         
         elif option == 3:
             print('Cerrando la conexión...')
+            print()
             time.sleep(2)
             break
         

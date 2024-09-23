@@ -681,6 +681,9 @@ int initilize_esp_bme(void) {
     bme_forced_mode();
     uart_setup();
     read_nvs_value();
+    create_window_data();
+    uart_setup(); // Uart setup
+
     return 0;
 }
 
@@ -776,10 +779,6 @@ void handshake(void){
 
 void app_main(void) {
     initilize_esp_bme();
-    create_window_data();
-    change_window_size(10);
-    uart_setup(); // Uart setup
-    // Waiting for an BEGIN to initialize data sending
     handshake();
     wait_menu();
 }
