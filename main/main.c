@@ -50,6 +50,8 @@ float task_delay_ms = 1000;
 typedef struct {
     int calc_temp;
     int press_comp;
+    float rms_temp;
+    float rms_press;
 } SensorData;
 
 int window_size = 10;
@@ -614,12 +616,19 @@ int change_window_size(int new_size){
 
 void calculate_rms() {
     printf("Calculando RMS\n");
-    float sum = 0;
+    float sum_t = 0;
+    float sum_p = 0;
     for (int i = 0; i < window_size; i++){
-        sum += pow(temperature_window[i], 2);
+        sum_t += pow(temperature_window[i], 2);
+        sum_p += pow(pressure_window[i], 2);
     }
-    float rms = sqrt(sum / window_size);
-    printf("RMS: %f\n", rms);
+    float rms_t = sqrt(sum_t / window_size);
+    float rms_p = sqrt(sum_p / window_size);
+    printf("window size: %d\n", window_size);
+    printf("RMS_t: %f\n", rms_t);
+    printf("\n");
+    printf("RMS_p: %f\n", rms_p);
+
 }
 
 int close_connection(void) {
