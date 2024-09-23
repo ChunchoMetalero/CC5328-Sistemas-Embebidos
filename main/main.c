@@ -36,7 +36,7 @@
 #define ACK_VAL 0x0
 #define NACK_VAL 0x1
 
-#define REDIRECT_LOGS 0 // if redirect ESP log to another UART
+#define REDIRECT_LOGS 1 // if redirect ESP log to another UART
 
 
 esp_err_t ret = ESP_OK;
@@ -69,7 +69,56 @@ SensorData sensor_data;
 
 // -------------------- COM Serial --------------------- //
 
+// Function for sending things to UART1
+static int uart1_printf(const char *str, va_list ap) {
+    char *buf;
+    vasprintf(&buf, str, ap);
+    uart_write_bytes(UART_NUM_1, buf, strlen(buf));
+    free(buf);
+    return 0;
+}
 
+// Setup of UART connections 0 and 1, and try to redirect logs to UART1 if asked
+static void uart_setup() {
+    uart_config_t uart_config = {
+        .baud_rate = 115200,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+    };
+
+    uart_param_config(UART_NUM_0, &uart_config);
+    uart_param_config(UART_NUM_1, &uart_config);
+    uart_driver_install(UART_NUM_0, BUF_SIZE * 2, 0, 0, NULL, 0);
+    uart_driver_install(UART_NUM_1, BUF_SIZE * 2, 0, 0, NULL, 0);
+
+    // Redirect ESP log to UART1
+    if (REDIRECT_LOGS) {
+        esp_log_set_vprintf(uart1_printf);
+    }
+}
+
+// Write message through UART_num with an \0 at the end
+// int serial_write(const char *msg, int len){
+
+//     char *send_with_end = (char *)malloc(sizeof(char) * (len + 1));
+//     memcpy(send_with_end, msg, len);
+//     send_with_end[len] = '\0';
+
+//     int result = uart_write_bytes(UART_NUM, send_with_end, len+1);
+
+//     free(send_with_end);
+
+//     vTaskDelay(pdMS_TO_TICKS(1000));  // Delay for 1 second
+//     return result;
+// }
+
+// Read UART_num for input with timeout of 1 sec
+int serial_read(char *buffer, int size){
+    int len = uart_read_bytes(UART_NUM, (uint8_t*)buffer, size, pdMS_TO_TICKS(1000));
+    return len;
+}
 
 //------------------------------------------------------//
 
@@ -155,7 +204,6 @@ void modify_nvs_value(int new_value) {
         nvs_close(nvs_handle);
     }
 }
-
 
 
 //------------------------------------------------------//
@@ -532,8 +580,6 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc) {
     sensor_data.press_comp = calc_press;
 }
 
-
-
 void bme_get_mode(void) {
     uint8_t reg_mode = 0x74;
     uint8_t tmp;
@@ -582,45 +628,32 @@ void bme_read_data() {
 
         sensor_data.temperature_window[i] = (float)temp / 100;
         sensor_data.pressure_window[i] = (float)press / 100;
-        printf("Temperatura: %f\n", sensor_data.temperature_window[i]);
-        printf("Presión: %f\n", sensor_data.pressure_window[i]);
-        printf("\n");
     }
 }
 
 
 // ------------ App ------------ //
 int create_window_data(){
-    printf("Creando ventana de datos\n");
-    printf("Tamaño de ventana: %d\n", window_size);
     sensor_data.temperature_window = (float *)malloc(sizeof(float) * window_size);
     sensor_data.pressure_window = (float *)malloc(sizeof(float) * window_size);
     if (sensor_data.temperature_window == NULL || sensor_data.pressure_window == NULL){
         return 1;
-        printf("Error al crear ventana de datos\n");
     }
-    printf("Ventana de datos creada\n");
     return 0;
 }
 
 int change_window_size(int new_size){
-    printf("Cambiando tamaño de ventana\n");
-    printf("Tamaño de ventana actual: %d\n", window_size);
-    printf("Nuevo tamaño de ventana: %d\n", new_size);
     window_size = new_size;
     modify_nvs_value(new_size);
     sensor_data.temperature_window = (float *)realloc(sensor_data.temperature_window, sizeof(float) * new_size);
     sensor_data.pressure_window = (float *)realloc(sensor_data.pressure_window, sizeof(float) * new_size);
     if (sensor_data.temperature_window == NULL || sensor_data.pressure_window == NULL){
         return 1;
-        printf("Error al cambiar tamaño de ventana de datos\n");
     }
-    printf("Tamaño de ventana cambiado\n");
     return 0;
 }
 
 void calculate_rms(void) {
-    printf("Calculando RMS\n");
     float sum_t = 0;
     float sum_p = 0;
     for (int i = 0; i < window_size; i++){
@@ -629,17 +662,12 @@ void calculate_rms(void) {
     }
     float rms_t = sqrt(sum_t / window_size);
     float rms_p = sqrt(sum_p / window_size);
-    printf("window size: %d\n", window_size);
-    printf("RMS_t: %f\n", rms_t);
-    printf("\n");
-    printf("RMS_p: %f\n", rms_p);
 
     sensor_data.rms_temp = rms_t;
     sensor_data.rms_press = rms_p;
 }
 
 int close_connection(void) {
-    printf("Cerrando conexión\n");
     free(sensor_data.temperature_window);
     free(sensor_data.pressure_window);
     return 0;
@@ -651,19 +679,150 @@ int initilize_esp_bme(void) {
     bme_softreset();
     bme_get_mode();
     bme_forced_mode();
-    read_nvs_value();
+    uart_setup();
     return 0;
 }
 
 void send_window_data(void){
     bme_read_data();
     calculate_rms();
+
+    char dataResponse1[6];
+    while (1)
+    {
+        int rLen = serial_read(dataResponse1, 6);
+        if (rLen > 0)
+        {
+            if (strcmp(dataResponse1, "BEGIN") == 0)
+            {
+                break;
+            }
+        }
+    }
+
+    // Data sending, can be stopped receiving an END between sendings
+    char dataResponse2[4];
+    while (1)
+    {
+        float data[4];
+        
+        for (int i = 0; i < window_size; i++) {
+            data[0] = sensor_data.temperature_window[i];
+            data[1] = sensor_data.pressure_window[i];
+            data[2] = sensor_data.rms_temp;
+            data[3] = sensor_data.rms_press;
+
+            const char* dataToSend = (const char*)data;
+
+            int len = sizeof(float)*4;
+
+            uart_write_bytes(UART_NUM, dataToSend, len);
+
+            int rLen = serial_read(dataResponse2, 4);
+            if (rLen > 0) {
+
+                if (strcmp(dataResponse2, "END") == 0) {
+                    break;
+                }
+            }
+            vTaskDelay(pdMS_TO_TICKS(300));  // Delay for 1 second
+        }
+    }
 }
 
+void wait_menu(void){
+    char dataResponse[2];
+    while(1){
+        int rLen = serial_read(dataResponse, 2);
+        if (rLen > 0){
+            if (strcmp(dataResponse, "1") == 0){
+                send_window_data();
+            } 
+            else if (strcmp(dataResponse, "2") == 0){
+                char new_window_size[4];
+                while (1){
+                    int rLen = serial_read(new_window_size, 4);
+                    if (rLen > 0){
+                        int new_size = atoi(new_window_size);
+                        change_window_size(new_size);
+                        break;
+                    }
+                }
+            }
+            else if (strcmp(dataResponse, "3") == 0){
+                close_connection();
+                break;
+            }
+        }
+    }
+}
+
+void handshake(void){
+    // OK!
+    // revisa si recibe el ok del otro lado
+    printf("Handshake\n");
+    while(1){
+        char buffer[6];
+        int rlen = serial_read(buffer, 6);
+
+        if(rlen > 0){
+
+            if (strcmp(buffer, "Okay") == 0){
+                uart_write_bytes(UART_NUM_0, "Okay\n", 6);
+                break;
+            }
+        }  
+    }
+}
+
+void send_window_size(void){
+    char dataResponse1[6];
+    while (1)
+    {
+        int rLen = serial_read(dataResponse1, 6);
+        if (rLen > 0)
+        {
+            if (strcmp(dataResponse1, "ready") == 0)
+            {
+                break;
+            }
+        }
+    }
+
+    // Data sending, can be stopped receiving an END between sendings
+    char dataResponse2[4];
+    read_nvs_value();
+    while (1)
+    {
+
+        float float_window_size = (float)window_size;
+
+        float data[3];
+        
+        data[0] = float_window_size;
+        data[1] = float_window_size;
+
+        const char* dataToSend = (const char*)data;
+
+        int len = sizeof(float)*4;
+
+        uart_write_bytes(UART_NUM, dataToSend, len);
+
+        int rLen = serial_read(dataResponse2, 3);
+        if (rLen > 0) {
+
+            if (strcmp(dataResponse2, "END") == 0) {
+                break;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(300));  // Delay for 1 second
+    }
+}
 
 void app_main(void) {
     initilize_esp_bme();
+    handshake();
+    send_window_size();
     create_window_data();
-    send_window_data();
-    close_connection();
+    wait_menu();
 }
