@@ -12,30 +12,38 @@ window_size = 10
 
 # Menu de opciones
 def menu():
-    print('Menu: A continuacion se presentan las opciones disponibles')
+    print('Menu: A continuación se presentan las opciones disponibles')
     print('1. Solicitar una ventana de datos')
     print('2. Cambiar el tamaño de la ventana de datos')
-    print('3. Cerrar la conexion')
-    option = int(input('Ingrese una opcion: '))
+    print('3. Cerrar la conexión')
+    option = int(input('Ingrese una opción: '))
     if option not in [1, 2, 3]:
-        print('Opcion invalida')
-        print('Por favor, ingrese una opcion valida')
-        menu()
+        print('Opción inválida')
+        print('Por favor, ingrese una opción válida')
+        return
 
-    message = pack('2s', '1\0'.encode())
-    send_message(message)
-    while True:
-        if ser.in_waiting > 0:
-            try:
-                message = receive_temps()
-            except:
-                print('Error en leer mensaje')
-                continue
-            else:
-                print(message)
-            finally:
-                print('Mensaje recibido')
-                break
+    elif option == 1:
+        message = pack('2s', '1\0'.encode())
+        send_message(message)
+        while True:
+            if ser.in_waiting > 0:
+                try:
+                    message = receive_temps()
+                except:
+                    print('Error en leer mensaje')
+                    continue
+                else:
+                    print(message)
+                finally:
+                    print('Mensaje recibido')
+                    break
+    elif option == 2:
+        # por mientras no hace nada
+        return 
+    
+    elif option == 3:
+        # Se envia el mensaje de termino de comunicacion
+        ser.close()
 
 # Funciones
 def send_message(message):
@@ -56,14 +64,12 @@ def receive_data():
     return data
 
 def receive_temps():
-    # Funcion que recibe char*[window_size] de la ESP32 y los imprime en consola
-    # Cada temperatura se almacena en un float
+    """ Funcion que recibe char*[window_size] de la ESP32 y los imprime en consola.
+    Cada temperatura se almacena en un float """
     data = receive_response()
     data = unpack(f'{window_size}s', data)
     print(f'Received: {data}')
     return data
-
-
 
 def send_end_message():
     """ Funcion para enviar un mensaje de finalizacion a la ESP32 """
@@ -71,26 +77,7 @@ def send_end_message():
     ser.write(end_message)
 
 
-menu()
-
 # Se lee data por la conexion serial
 counter = 0
 while True:
-    if ser.in_waiting > 0:
-        try:
-            message = receive_temps()
-        except:
-            print('Error en leer mensaje')
-            continue
-        else: 
-            counter += 1
-            print(counter)
-        finally:
-            if counter == 10:
-                print('Lecturas listas!')
-                break
-
-
-# Se envia el mensaje de termino de comunicacion
-
-ser.close()
+    menu()
