@@ -13,14 +13,13 @@ window_size = 10
 # Menu de opciones
 def menu():
     print('Menu: A continuación se presentan las opciones disponibles')
-    print('1. Solicitar una ventana de datos')
+    print(f'1. Solicitar una ventana de datos: el tamaño actual de la ventana es {window_size}')
     print('2. Cambiar el tamaño de la ventana de datos')
     print('3. Cerrar la conexión')
     option = int(input('Ingrese una opción: '))
     if option not in [1, 2, 3]:
         print('Opción inválida')
         print('Por favor, ingrese una opción válida')
-        return
 
     elif option == 1:
         message = pack('2s', '1\0'.encode())
@@ -37,9 +36,10 @@ def menu():
                 finally:
                     print('Mensaje recibido')
                     break
+
     elif option == 2:
-        # por mientras no hace nada
-        return 
+        window_size = int(input('Ingrese el nuevo tamaño de la ventana de datos: '))
+        print(f'El nuevo tamaño de la ventana es de {window_size}')
     
     elif option == 3:
         # Se envia el mensaje de termino de comunicacion
