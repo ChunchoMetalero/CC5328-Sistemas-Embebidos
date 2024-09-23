@@ -825,4 +825,5 @@ void app_main(void) {
     send_window_size();
     create_window_data();
     wait_menu();
+    esp_restart();
 }
