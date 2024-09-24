@@ -3,7 +3,7 @@ import time
 from struct import pack, unpack
 
 # Se configura el puerto y el BAUD_Rate
-PORT = 'COM5'  # Esto depende del sistema operativo
+PORT = 'COM3'  # Esto depende del sistema operativo
 BAUD_RATE = 115200  # Debe coincidir con la configuracion de la ESP32
 
 # Se abre la conexion serial
@@ -169,6 +169,8 @@ def menu():
             send_message(message2)
             time.sleep(3)
             receive_window_data()
+            send_end_message()
+            
 
         elif option == 2:
             message = pack('2s','2\0'.encode())

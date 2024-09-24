@@ -702,8 +702,7 @@ void send_window_data(void){
 
     // Data sending, can be stopped receiving an END between sendings
     char dataResponse2[4];
-    while (1)
-    {
+    while (1) {
         float data[4];
         
         for (int i = 0; i < window_size; i++) {
@@ -718,14 +717,11 @@ void send_window_data(void){
 
             uart_write_bytes(UART_NUM, dataToSend, len);
 
-            int rLen = serial_read(dataResponse2, 4);
-            if (rLen > 0) {
-
-                if (strcmp(dataResponse2, "END") == 0) {
-                    break;
-                }
-            }
+            serial_read(dataResponse2, 4);
             vTaskDelay(pdMS_TO_TICKS(300));  // Delay for 1 second
+        }
+        if (strcmp(dataResponse2, "END") == 0) {
+            break;
         }
     }
 }
