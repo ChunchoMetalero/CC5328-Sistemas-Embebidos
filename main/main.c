@@ -552,14 +552,14 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc) {
     uint8_t par_h[9];
 
     bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 1, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 2, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 3, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 4, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 5, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 6, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 7, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 8, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h1_msb, par_h + 1, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h2_lsb, par_h + 2, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h2_msb, par_h + 3, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h3_lsb, par_h + 4, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h4_lsb, par_h + 5, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h5_lsb, par_h + 6, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h6_lsb, par_h + 7, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h7_lsb, par_h + 8, 1);
 
     par_h1 = (par_h[1] << 8) | (par_h[0] & 0b00001111);
     par_h2 = (par_h[3] << 8) | (par_h[2] & 0b11110000);
@@ -675,9 +675,9 @@ void bme_read_data() {
         press_adc = press_adc | (tmp2 & 0xf0) >> 4;
 
         bme_i2c_read(I2C_NUM_0, &forced_hum_addr[0], &tmp3, 1);
-        press_adc = press_adc | tmp2 << 12;
+        hum_adc = hum_adc | tmp3 << 12;
         bme_i2c_read(I2C_NUM_0, &forced_hum_addr[1], &tmp3, 1);
-        press_adc = press_adc | tmp2 << 4;
+        hum_adc = hum_adc | tmp3 << 4;
 
         bme_temp_celsius(temp_adc, press_adc, hum_adc);
         uint32_t temp = sensor_data.calc_temp;
