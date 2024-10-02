@@ -788,6 +788,14 @@ void calculate_five_peaks(void) {
     free(humidity_window_sorted);
 }
 
+/**
+ * @brief Funcion que calcula la FFT de un arreglo y guarda el resultado inplace
+ *
+ * @param array Arreglo de elementos sobre los que se quiere calcular la FFT
+ * @param size Tamano del arreglo
+ * @param array_re Direccion del arreglo donde se guardara la parte real. Debe ser de tamano size
+ * @param array_im Direccion del arreglo donde se guardara la parte imaginaria. Debe ser de tamano size
+ */
 void calcularFFT(float *array, int size, float *array_re, float *array_im) {
     for (int k = 0; k < size; k++) {
         float real = 0;
@@ -809,7 +817,7 @@ void calcularFFT(float *array, int size, float *array_re, float *array_im) {
 }
 
 void calculate_fft(void) {
-    
+
 }
 
 int close_connection(void) {
