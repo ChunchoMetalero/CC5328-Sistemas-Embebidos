@@ -38,6 +38,8 @@
 
 #define REDIRECT_LOGS 1 // if redirect ESP log to another UART
 
+#define M_PI 3.14159
+
 
 esp_err_t ret = ESP_OK;
 esp_err_t ret2 = ESP_OK;
@@ -62,6 +64,11 @@ typedef struct {
     float *temperature_window;
     float *pressure_window;
     float *humidity_window;
+
+    // Five peaks
+    float *fivepeaks_t;
+    float *fivepeaks_p;
+    float *fivepeaks_h;
 } SensorData;
 
 int window_size = 10;
@@ -702,6 +709,16 @@ int create_window_data(){
     return 0;
 }
 
+int initialize_five_peaks() {
+    sensor_data.fivepeaks_t = (float *)malloc(sizeof(float) * 5)
+    sensor_data.fivepeaks_p = (float *)malloc(sizeof(float) * 5)
+    sensor_data.fivepeaks_h = (float *)malloc(sizeof(float) * 5)
+    if (sensor_data.fivepeaks_t == NULL || sensor_data.fivepeaks_p == NULL || sensor_data.fivepeaks_h == NULL){
+        return 1;
+    }
+    return 0;
+}
+
 int change_window_size(int new_size){
     window_size = new_size;
     modify_nvs_value(new_size);
@@ -730,6 +747,69 @@ void calculate_rms(void) {
     sensor_data.rms_temp = rms_t;
     sensor_data.rms_press = rms_p;
     sensor_data.rms_hum = rms_h;
+}
+
+int compare_floats(const void *a, const void *b) {
+    float fa = *(const float *)a;
+    float fb = *(const float *)b;
+
+    if (fa > fb)
+        return 1;
+    else if (fa < fb)
+        return -1;
+    else
+        return 0;
+}
+
+void calculate_five_peaks(void) {
+
+    float temperature_window_sorted = (float *)malloc(sizeof(float) * window_size);
+    float pressure_window_sorted = (float *)malloc(sizeof(float) * window_size);
+    float humidity_window_sorted = (float *)malloc(sizeof(float) * window_size);
+
+    for (int i = 0; i < window_size; i++) {
+        temperature_window_sorted[i] = sensor_data.temperature_window[i];
+        pressure_window_sorted[i] = sensor_data.pressure_window[i];
+        humidity_window_sorted[i] = sensor_data.humidity_window[i];
+    }
+
+    qsort(temperature_window_sorted, window_size, sizeof(float), compare_floats);
+    qsort(pressure_window_sorted, window_size, sizeof(float), compare_floats);
+    qsort(humidity_window_sorted, window_size, sizeof(float), compare_floats);
+
+    for (int i = 0; i < 5; i++) {
+        sensor_data.fivepeaks_t[i] = temperature_window_sorted[window_size - i];
+        sensor_data.fivepeaks_p[i] = pressure_window_sorted[window_size - i];
+        sensor_data.fivepeaks_h[i] = humidity_window_sorted[window_size - i];
+    }
+
+    free(temperature_window_sorted);
+    free(pressure_window_sorted);
+    free(humidity_window_sorted);
+}
+
+void calcularFFT(float *array, int size, float *array_re, float *array_im) {
+    for (int k = 0; k < size; k++) {
+        float real = 0;
+        float imag = 0;
+
+        for (int n = 0; n < size; n++) {
+            float angulo = 2 * M_PI * k * n / size;
+            float cos_angulo = cos(angulo);
+            float sin_angulo = -sin(angulo);
+
+            real += array[n] * cos_angulo;
+            imag += array[n] * sin_angulo;
+        }
+        real /= size;
+        imag /= size;
+        array_re[k] = real;
+        array_im[k] = imag;
+    }
+}
+
+void calculate_fft(void) {
+    
 }
 
 int close_connection(void) {
@@ -888,6 +968,7 @@ void app_main(void) {
     handshake();
     send_window_size();
     create_window_data();
+    initialize_five_peaks();
     wait_menu();
     esp_restart();
 }
