@@ -475,7 +475,8 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc) {
     // Datasheet[23]
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=23
 
-    // Se obtienen los parametros de calibracion de la temperatura
+    // Direcciones de memoria donde se encuentan almacenados los 
+    // parámetros de calibración de TEMPERATURA en el sensor
     uint8_t addr_par_t1_lsb = 0xE9, addr_par_t1_msb = 0xEA;
     uint8_t addr_par_t2_lsb = 0x8A, addr_par_t2_msb = 0x8B;
     uint8_t addr_par_t3_lsb = 0x8C;
@@ -483,18 +484,28 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc) {
     uint16_t par_t2;
     uint16_t par_t3;
 
+    // Arreglo par_t para almacenar los datos leídos del sensor
     uint8_t par_t[5];
+
+    // Se llama a bme_i2c_read varias veces para leer datos
+    // del sensor a través del bus I2C. Cada llamada a esta función
+    // especifica la dirección de memoria desde donde se leerán los datos
+    // y la ubicación en el arreglo par_t donde se almacenarán los datos
+    // leídos
     bme_i2c_read(I2C_NUM_0, &addr_par_t1_lsb, par_t, 1);
     bme_i2c_read(I2C_NUM_0, &addr_par_t1_msb, par_t + 1, 1);
     bme_i2c_read(I2C_NUM_0, &addr_par_t2_lsb, par_t + 2, 1);
     bme_i2c_read(I2C_NUM_0, &addr_par_t2_msb, par_t + 3, 1);
     bme_i2c_read(I2C_NUM_0, &addr_par_t3_lsb, par_t + 4, 1);
 
+    // Operación de combinación de bits para combinar los
+    // datos leídos en variables separadas
     par_t1 = (par_t[1] << 8) | par_t[0];
     par_t2 = (par_t[3] << 8) | par_t[2];
     par_t3 = par_t[4];
 
-    // Se obtienen los parametros de calibracion de la presion
+    // Direcciones de memoria donde se encuentan almacenados 
+    // los parámetros de calibración de PRESIÓN en el sensor
     uint8_t addr_par_p1_lsb = 0x8E, addr_par_p1_msb = 0x8F;
     uint8_t addr_par_p2_lsb = 0x90, addr_par_p2_msb = 0x91;
     uint8_t addr_par_p3_lsb = 0x92;
@@ -506,11 +517,14 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc) {
     uint8_t addr_par_p9_lsb = 0x9E, addr_par_p9_msb = 0x9F;
     uint8_t addr_par_p10_lsb = 0xA0;
 
+    // Almacenamiento de información de PRESIÓN
     uint32_t par_p1, par_p2, par_p3, par_p4, par_p5;
     uint32_t par_p6, par_p7, par_p8, par_p9, par_p10;
 
     uint8_t par_p[16];
 
+    // Se llama a la función bme_i2c_read varias veces,
+    // en el arreglo par_p se almacenan los datos leídos
     bme_i2c_read(I2C_NUM_0, &addr_par_p1_lsb, par_p, 1);
     bme_i2c_read(I2C_NUM_0, &addr_par_p1_msb, par_p + 1, 1);
     bme_i2c_read(I2C_NUM_0, &addr_par_p2_lsb, par_p + 2, 1);
@@ -528,6 +542,8 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc) {
     bme_i2c_read(I2C_NUM_0, &addr_par_p9_msb, par_p + 14, 1);
     bme_i2c_read(I2C_NUM_0, &addr_par_p10_lsb, par_p + 15, 1);
 
+    // Se realiza operación de combinación de bits para combinar los
+    // datos leídos en variables separadas
     par_p1 = (par_p[1] << 8) | par_p[0];
     par_p2 = (par_p[3] << 8) | par_p[2];
     par_p3 = par_p[4];
@@ -539,6 +555,8 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc) {
     par_p9 = (par_p[14] << 8) | par_p[13];
     par_p10 = par_p[15];
 
+    // Direcciones de memoria donde se encuentan almacenados 
+    // los parámetros de calibración de HUMEDAD en el sensor
     uint8_t addr_par_h1_lsb = 0xE2, addr_par_h1_msb = 0xE3;
     uint8_t addr_par_h2_lsb = 0xE2, addr_par_h2_msb = 0xE1;
     uint8_t addr_par_h3_lsb = 0xE4;
@@ -547,10 +565,12 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc) {
     uint8_t addr_par_h6_lsb = 0xE7;
     uint8_t addr_par_h7_lsb = 0xE8;
 
+    // Almacenamiento de información de HUMEDAD
     uint32_t par_h1, par_h2, par_h3, par_h4, par_h5, par_h6, par_h7;
 
     uint8_t par_h[9];
 
+    // Recibimiento de información
     bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h, 1);
     bme_i2c_read(I2C_NUM_0, &addr_par_h1_msb, par_h + 1, 1);
     bme_i2c_read(I2C_NUM_0, &addr_par_h2_lsb, par_h + 2, 1);
@@ -561,6 +581,7 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc) {
     bme_i2c_read(I2C_NUM_0, &addr_par_h6_lsb, par_h + 7, 1);
     bme_i2c_read(I2C_NUM_0, &addr_par_h7_lsb, par_h + 8, 1);
 
+    // Operación de bits
     par_h1 = (par_h[1] << 8) | (par_h[0] & 0b00001111);
     par_h2 = (par_h[3] << 8) | (par_h[2] & 0b11110000);
     par_h3 = par_h[4];
