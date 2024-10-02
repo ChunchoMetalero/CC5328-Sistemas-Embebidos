@@ -52,16 +52,19 @@ typedef struct {
     int calc_temp;
     int press_comp;
     int hum_comp;
+    int gas_comp;
 
     // RMS 
     float rms_temp;
     float rms_press;
     float rms_hum;
+    float rms_gas;
 
     // Ventanas de datos
     float *temperature_window;
     float *pressure_window;
     float *humidity_window;
+    float *gas_window;
 } SensorData;
 
 int window_size = 10;
@@ -552,14 +555,14 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc) {
     uint8_t par_h[9];
 
     bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 1, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 2, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 3, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 4, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 5, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 6, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 7, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 8, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h1_msb, par_h + 1, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h2_lsb, par_h + 2, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h2_msb, par_h + 3, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h3_lsb, par_h + 4, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h4_lsb, par_h + 5, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h5_lsb, par_h + 6, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h6_lsb, par_h + 7, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h7_lsb, par_h + 8, 1);
 
     par_h1 = (par_h[1] << 8) | (par_h[0] & 0b00001111);
     par_h2 = (par_h[3] << 8) | (par_h[2] & 0b11110000);
@@ -568,6 +571,23 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc) {
     par_h5 = par_h[6];
     par_h6 = par_h[7];
     par_h7 = par_h[8];
+
+    uint8_t addr_par_g1_lsb = 0xED;
+    uint8_t addr_par_g2_lsb = 0xEB, addr_par_g2_msb = 0xEC;
+    uint8_t addr_par_g3_lsb = 0xEE;
+
+    uint32_t par_g1, par_g2, par_g3;
+
+    uint8_t par_g[4];
+
+    bme_i2c_read(I2C_NUM_0, &addr_par_g1_lsb, par_g, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_g2_lsb, par_g, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_g2_msb, par_g, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_g3_lsb, par_g, 1);
+
+    par_g1 = par_g[0];
+    par_g2 = (par_g[2] << 8) | par_g[1];
+    par_g3 = par_g[3]
 
     // Calculo de la temperatura
     int64_t var1_t;
@@ -623,6 +643,9 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc) {
     calc_hum = (var3_h + var6_h) >> 12;
     calc_hum = (((var3_h + var6_h) >> 10) * ((int32_t) 1000)) >> 12;
 
+    // Calculo de la concentracion
+    uint32_t var1_g, var2_g, var3_g, var4_g, var5_g;
+
     sensor_data.calc_temp = calc_temp;
     sensor_data.press_comp = calc_press;
     sensor_data.hum_comp = calc_hum;
@@ -646,16 +669,19 @@ void bme_read_data() {
     uint8_t tmp;
     uint8_t tmp2;
     unit8_t tmp3;
+    unit8_t tmp4;
 
     // Se obtienen los datos de temperatura
     uint8_t forced_temp_addr[] = {0x22, 0x23, 0x24};
     uint8_t forced_press_addr[] = {0x1F, 0x20, 0x21};
     uint8_t forced_hum_addr[] = {0x25, 0x26};
+    uint8_t forced_gas_addr[] = {0x2C, 0x2D};
 
     for (int i = 0; i < window_size; i++) {
         uint32_t temp_adc = 0;
         uint32_t press_adc = 0;
         uint32_t hum_adc = 0;
+        uint32_t gas_adc = 0;
         bme_forced_mode();
         // Datasheet[41]
         // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=41
@@ -675,18 +701,25 @@ void bme_read_data() {
         press_adc = press_adc | (tmp2 & 0xf0) >> 4;
 
         bme_i2c_read(I2C_NUM_0, &forced_hum_addr[0], &tmp3, 1);
-        press_adc = press_adc | tmp2 << 12;
+        press_adc = press_adc | tmp3 << 12;
         bme_i2c_read(I2C_NUM_0, &forced_hum_addr[1], &tmp3, 1);
-        press_adc = press_adc | tmp2 << 4;
+        press_adc = press_adc | tmp3 << 4;
 
-        bme_temp_celsius(temp_adc, press_adc, hum_adc);
+        bme_i2c_read(I2C_NUM_0, &forced_gas_addr[0], &tmp4, 1);
+        press_adc = press_adc | tmp4 << 12;
+        bme_i2c_read(I2C_NUM_0, &forced_gas_addr[1], &tmp4, 1);
+        press_adc = press_adc | tmp4 << 4;
+
+        bme_temp_celsius(temp_adc, press_adc, hum_adc, gas_adc);
         uint32_t temp = sensor_data.calc_temp;
         uint32_t press = sensor_data.press_comp;
         uint32_t hum = sensor_data.hum_comp;
+        uint32_t gas = sensor_data.gas_comp;
 
         sensor_data.temperature_window[i] = (float)temp / 100;
         sensor_data.pressure_window[i] = (float)press / 100;
         sensor_data.humidity_window[i] = (float)hum / 100;
+        sensor_data.gas_window[i] = (float)gas / 100;
     }
 }
 
