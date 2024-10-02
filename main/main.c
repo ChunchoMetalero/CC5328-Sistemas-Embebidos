@@ -561,8 +561,8 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc) {
     bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 7, 1);
     bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 8, 1);
 
-    par_h1 = (par_h[1] << 8) | (par_h[0] | 0b00000111);
-    par_h2 = (par_h[3] << 8) | (par_h[2] | 0b01111000);
+    par_h1 = (par_h[1] << 8) | (par_h[0] | 0b00001111);
+    par_h2 = (par_h[3] << 8) | (par_h[2] | 0b11110000);
     par_h3 = par_h[4];
     par_h4 = par_h[5];
     par_h5 = par_h[6];
