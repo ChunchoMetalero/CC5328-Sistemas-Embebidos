@@ -51,14 +51,17 @@ typedef struct {
     // Datos de temperatura y presión
     int calc_temp;
     int press_comp;
+    int hum_comp;
 
     // RMS 
     float rms_temp;
     float rms_press;
+    float rms_hum;
 
     // Ventanas de datos
     float *temperature_window;
     float *pressure_window;
+    float *humidity_window;
 } SensorData;
 
 int window_size = 10;
@@ -468,7 +471,7 @@ int bme_check_forced_mode(void) {
     return (tmp == 0b001 && tmp2 == 0x59 && tmp3 == 0x00 && tmp4 == 0b100000 && tmp5 == 0b01010101);
 }
 
-void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc) {
+void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc) {
     // Datasheet[23]
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=23
 
@@ -536,6 +539,35 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc) {
     par_p9 = (par_p[14] << 8) | par_p[13];
     par_p10 = par_p[15];
 
+    uint8_t addr_par_h1_lsb = 0xE2, addr_par_h1_msb = 0xE3;
+    uint8_t addr_par_h2_lsb = 0xE2, addr_par_h2_msb = 0xE1;
+    uint8_t addr_par_h3_lsb = 0xE4;
+    uint8_t addr_par_h4_lsb = 0xE5;
+    uint8_t addr_par_h5_lsb = 0xE6;
+    uint8_t addr_par_h6_lsb = 0xE7;
+    uint8_t addr_par_h7_lsb = 0xE8;
+
+    uint32_t par_h1, par_h2, par_h3, par_h4, par_h5, par_h6, par_h7;
+
+    uint8_t par_h[9];
+
+    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 1, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 2, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 3, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 4, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 5, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 6, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 7, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_h1_lsb, par_h + 8, 1);
+
+    par_h1 = (par_h[1] << 8) | (par_h[0] | 0b00000111);
+    par_h2 = (par_h[3] << 8) | (par_h[2] | 0b01111000);
+    par_h3 = par_h[4];
+    par_h4 = par_h[5];
+    par_h5 = par_h[6];
+    par_h6 = par_h[7];
+    par_h7 = par_h[8];
 
     // Calculo de la temperatura
     int64_t var1_t;
@@ -576,8 +608,24 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc) {
     var3_p = ((int32_t)(calc_press >> 8) * (int32_t)(calc_press >> 8) * (int32_t)(calc_press >> 8) * (int32_t)par_p10) >> 17;  
     calc_press = (int32_t)(calc_press) + ((var1_p + var2_p + var3_p + ((int32_t)par_p7 << 7)) >> 4);    
 
+    // Calculo de la humedad
+    int32_t temp_scaled;
+    uint32_t var1_h, var2_h, var3_h, var4_h, var5_h, var6_h;
+    int calc_hum;
+
+    temp_scaled = (int32_t)calc_temp;
+    var1_h = (int32_t)hum_adc - (int32_t)((int32_t)par_h1 << 4) - (((temp_scaled * (int32_t)par_h3) / ((int32_t)100)) >> 1);
+    var2_h = ((int32_t)par_h2 * (((temp_scaled * (int32_t)par_h4) / ((int32_t)100)) + (((temp_scaled * ((temp_scaled * (int32_t)par_h5) / ((int32_t)100))) >> 6) / ((int32_t)100)) + ((int32_t)(1 << 14)))) >> 10;
+    var3_h = var1_h * var2_h;
+    var4_h = (((int32_t)par_h6 << 7) + ((temp_scaled * (int32_t)par_h7) / ((int32_t)100))) >> 4;
+    var5_h = ((var3_h >> 14) * (var3_h >> 14)) >> 10;
+    var6_h = (var4_h * var5_h) >> 1;
+    calc_hum = (var3_h + var6_h) >> 12;
+    calc_hum = (((var3_h + var6_h) >> 10) * ((int32_t) 1000)) >> 12;
+
     sensor_data.calc_temp = calc_temp;
     sensor_data.press_comp = calc_press;
+    sensor_data.hum_comp = calc_hum;
 }
 
 void bme_get_mode(void) {
@@ -597,13 +645,17 @@ void bme_read_data() {
 
     uint8_t tmp;
     uint8_t tmp2;
+    unit8_t tmp3;
 
     // Se obtienen los datos de temperatura
     uint8_t forced_temp_addr[] = {0x22, 0x23, 0x24};
     uint8_t forced_press_addr[] = {0x1F, 0x20, 0x21};
+    uint8_t forced_hum_addr[] = {0x25, 0x26};
+
     for (int i = 0; i < window_size; i++) {
         uint32_t temp_adc = 0;
         uint32_t press_adc = 0;
+        uint32_t hum_adc = 0;
         bme_forced_mode();
         // Datasheet[41]
         // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=41
@@ -622,12 +674,19 @@ void bme_read_data() {
         bme_i2c_read(I2C_NUM_0, &forced_press_addr[2], &tmp2, 1);
         press_adc = press_adc | (tmp2 & 0xf0) >> 4;
 
-        bme_temp_celsius(temp_adc, press_adc);
+        bme_i2c_read(I2C_NUM_0, &forced_hum_addr[0], &tmp3, 1);
+        press_adc = press_adc | tmp2 << 12;
+        bme_i2c_read(I2C_NUM_0, &forced_hum_addr[1], &tmp3, 1);
+        press_adc = press_adc | tmp2 << 4;
+
+        bme_temp_celsius(temp_adc, press_adc, hum_adc);
         uint32_t temp = sensor_data.calc_temp;
         uint32_t press = sensor_data.press_comp;
+        uint32_t hum = sensor_data.hum_comp;
 
         sensor_data.temperature_window[i] = (float)temp / 100;
         sensor_data.pressure_window[i] = (float)press / 100;
+        sensor_data.humidity_window[i] = (float)hum / 100;
     }
 }
 
@@ -636,7 +695,8 @@ void bme_read_data() {
 int create_window_data(){
     sensor_data.temperature_window = (float *)malloc(sizeof(float) * window_size);
     sensor_data.pressure_window = (float *)malloc(sizeof(float) * window_size);
-    if (sensor_data.temperature_window == NULL || sensor_data.pressure_window == NULL){
+    sensor_data.humidity_window = (float *)malloc(sizeof(float) * window_size);
+    if (sensor_data.temperature_window == NULL || sensor_data.pressure_window == NULL || sensor_data.humidity_window == NULL){
         return 1;
     }
     return 0;
@@ -647,7 +707,8 @@ int change_window_size(int new_size){
     modify_nvs_value(new_size);
     sensor_data.temperature_window = (float *)realloc(sensor_data.temperature_window, sizeof(float) * new_size);
     sensor_data.pressure_window = (float *)realloc(sensor_data.pressure_window, sizeof(float) * new_size);
-    if (sensor_data.temperature_window == NULL || sensor_data.pressure_window == NULL){
+    sensor_data.humidity_window = (float *)realloc(sensor_data.humidity_window, sizeof(float) * new_size);
+    if (sensor_data.temperature_window == NULL || sensor_data.pressure_window == NULL || sensor_data.humidity_window == NULL){
         return 1;
     }
     return 0;
@@ -656,20 +717,25 @@ int change_window_size(int new_size){
 void calculate_rms(void) {
     float sum_t = 0;
     float sum_p = 0;
+    float sum_h = 0;
     for (int i = 0; i < window_size; i++){
         sum_t += pow(sensor_data.temperature_window[i], 2);
         sum_p += pow(sensor_data.pressure_window[i], 2);
+        sum_h += pow(sensor_data.humidity_window[i], 2);
     }
     float rms_t = sqrt(sum_t / window_size);
     float rms_p = sqrt(sum_p / window_size);
+    float rms_h = sqrt(sum_h / window_size);
 
     sensor_data.rms_temp = rms_t;
     sensor_data.rms_press = rms_p;
+    sensor_data.rms_hum = rms_h;
 }
 
 int close_connection(void) {
     free(sensor_data.temperature_window);
     free(sensor_data.pressure_window);
+    free(sensor_data.humidity_window)
     return 0;
 }
 
@@ -703,17 +769,19 @@ void send_window_data(void){
     // Data sending, can be stopped receiving an END between sendings
     char dataResponse2[4];
     while (1) {
-        float data[4];
+        float data[6];
         
         for (int i = 0; i < window_size; i++) {
             data[0] = sensor_data.temperature_window[i];
             data[1] = sensor_data.pressure_window[i];
-            data[2] = sensor_data.rms_temp;
-            data[3] = sensor_data.rms_press;
+            data[2] = sensor_data.humidity_window[i];
+            data[3] = sensor_data.rms_temp;
+            data[4] = sensor_data.rms_press;
+            data[5] = sensor_data.rms_hum;
 
             const char* dataToSend = (const char*)data;
 
-            int len = sizeof(float)*4;
+            int len = sizeof(float)*6;
 
             uart_write_bytes(UART_NUM, dataToSend, len);
 
