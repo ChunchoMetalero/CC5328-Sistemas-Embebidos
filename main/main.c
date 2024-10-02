@@ -701,14 +701,14 @@ void bme_read_data() {
         press_adc = press_adc | (tmp2 & 0xf0) >> 4;
 
         bme_i2c_read(I2C_NUM_0, &forced_hum_addr[0], &tmp3, 1);
-        press_adc = press_adc | tmp3 << 12;
+        hum_adc = hum_adc | tmp3 << 12;
         bme_i2c_read(I2C_NUM_0, &forced_hum_addr[1], &tmp3, 1);
-        press_adc = press_adc | tmp3 << 4;
+        hum_adc = hum_adc | tmp3 << 4;
 
         bme_i2c_read(I2C_NUM_0, &forced_gas_addr[0], &tmp4, 1);
-        press_adc = press_adc | tmp4 << 12;
+        gas_adc = gas_adc | tmp4 << 12;
         bme_i2c_read(I2C_NUM_0, &forced_gas_addr[1], &tmp4, 1);
-        press_adc = press_adc | tmp4 << 4;
+        gas_adc = gas_adc | tmp4 << 4;
 
         bme_temp_celsius(temp_adc, press_adc, hum_adc, gas_adc);
         uint32_t temp = sensor_data.calc_temp;
