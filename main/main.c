@@ -902,7 +902,7 @@ void send_window_data(void){
     // Data sending, can be stopped receiving an END between sendings
     char dataResponse2[4];
     while (1) {
-        float data[6];
+        float data[27];
         
         for (int i = 0; i < window_size; i++) {
             data[0] = sensor_data.temperature_window[i];
@@ -912,9 +912,40 @@ void send_window_data(void){
             data[4] = sensor_data.rms_press;
             data[5] = sensor_data.rms_hum;
 
+            // Envio metrica FFT
+            data[6] = sensor_data.fft_im_t[i];
+            data[7] = sensor_data.fft_im_p[i];
+            data[8] = sensor_data.fft_im_h[i];
+            data[9] = sensor_data.fft_re_t[i];
+            data[10] = sensor_data.fft_re_p[i];
+            data[11] = sensor_data.fft_re_h[i];
+
+            // Envio metrica fivepeaks
+            // Temperatura
+            data[12] = sensor_data.fivepeaks_t[0];
+            data[13] = sensor_data.fivepeaks_t[1];
+            data[14] = sensor_data.fivepeaks_t[2];
+            data[15] = sensor_data.fivepeaks_t[3];
+            data[16] = sensor_data.fivepeaks_t[4];
+
+            // Presion
+            data[17] = sensor_data.fivepeaks_p[0];
+            data[18] = sensor_data.fivepeaks_p[1];
+            data[19] = sensor_data.fivepeaks_p[2];
+            data[20] = sensor_data.fivepeaks_p[3];
+            data[21] = sensor_data.fivepeaks_p[4];
+
+
+            // Humedad
+            data[22] = sensor_data.fivepeaks_h[0];
+            data[23] = sensor_data.fivepeaks_h[1];
+            data[24] = sensor_data.fivepeaks_h[2];
+            data[25] = sensor_data.fivepeaks_h[3];
+            data[26] = sensor_data.fivepeaks_h[4];
+
             const char* dataToSend = (const char*)data;
 
-            int len = sizeof(float)*6;
+            int len = sizeof(float)*27;
 
             uart_write_bytes(UART_NUM, dataToSend, len);
 
