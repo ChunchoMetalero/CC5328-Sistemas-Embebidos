@@ -69,6 +69,15 @@ typedef struct {
     float *fivepeaks_t;
     float *fivepeaks_p;
     float *fivepeaks_h;
+
+    // FFT
+    float *fft_re_t;
+    float *fft_re_p;
+    float *fft_re_h;
+
+    float *fft_im_t;
+    float *fft_im_p;
+    float *fft_im_h;
 } SensorData;
 
 int window_size = 10;
@@ -719,6 +728,23 @@ int initialize_five_peaks() {
     return 0;
 }
 
+int initialize_fft() {
+    sensor_data.fft_re_t = (float *)malloc(sizeof(float) * window_size);
+    sensor_data.fft_re_p = (float *)malloc(sizeof(float) * window_size);
+    sensor_data.fft_re_h = (float *)malloc(sizeof(float) * window_size);
+    if (sensor_data.fft_re_t == NULL || sensor_data.fft_re_p == NULL || sensor_data.fft_re_h == NULL){
+        return 1;
+    }
+
+    sensor_data.fft_im_t = (float *)malloc(sizeof(float) * window_size);
+    sensor_data.fft_im_p = (float *)malloc(sizeof(float) * window_size);
+    sensor_data.fft_im_h = (float *)malloc(sizeof(float) * window_size);
+    if (sensor_data.fft_im_t == NULL || sensor_data.fft_im_p == NULL || sensor_data.fft_im_h == NULL){
+        return 1;
+    }
+    return 0;
+}
+
 int change_window_size(int new_size){
     window_size = new_size;
     modify_nvs_value(new_size);
@@ -726,6 +752,20 @@ int change_window_size(int new_size){
     sensor_data.pressure_window = (float *)realloc(sensor_data.pressure_window, sizeof(float) * new_size);
     sensor_data.humidity_window = (float *)realloc(sensor_data.humidity_window, sizeof(float) * new_size);
     if (sensor_data.temperature_window == NULL || sensor_data.pressure_window == NULL || sensor_data.humidity_window == NULL){
+        return 1;
+    }
+
+    sensor_data.fft_re_t = (float *)realloc(sensor_data.fft_re_t, sizeof(float) * new_size);
+    sensor_data.fft_re_p = (float *)realloc(sensor_data.fft_re_p, sizeof(float) * new_size);
+    sensor_data.fft_re_h = (float *)realloc(sensor_data.fft_re_h, sizeof(float) * new_size);
+    if (sensor_data.fft_re_t == NULL || sensor_data.fft_re_p == NULL || sensor_data.fft_re_h == NULL){
+        return 1;
+    }
+
+    sensor_data.fft_im_t = (float *)realloc(sensor_data.fft_im_t, sizeof(float) * new_size);
+    sensor_data.fft_im_p = (float *)realloc(sensor_data.fft_im_p, sizeof(float) * new_size);
+    sensor_data.fft_im_h = (float *)realloc(sensor_data.fft_im_h, sizeof(float) * new_size);
+    if (sensor_data.fft_im_t == NULL || sensor_data.fft_im_p == NULL || sensor_data.fft_im_h == NULL){
         return 1;
     }
     return 0;
@@ -817,13 +857,18 @@ void calcularFFT(float *array, int size, float *array_re, float *array_im) {
 }
 
 void calculate_fft(void) {
-
+    calcularFFT(sensor_data.temperature_window, window_size, sensor_data.fft_re_t, sensor_data.fft_im_t);
+    calcularFFT(sensor_data.pressure_window, window_size, sensor_data.fft_re_p, sensor_data.fft_im_p);
+    calcularFFT(sensor_data.humidity_window, window_size, sensor_data.fft_re_h, sensor_data.fft_im_h);
 }
 
 int close_connection(void) {
     free(sensor_data.temperature_window);
     free(sensor_data.pressure_window);
-    free(sensor_data.humidity_window)
+    free(sensor_data.humidity_window);
+    free(sensor_data.fivepeaks_t);
+    free(sensor_data.fivepeaks_p);
+    free(sensor_data.fivepeaks_h);
     return 0;
 }
 
@@ -977,6 +1022,7 @@ void app_main(void) {
     send_window_size();
     create_window_data();
     initialize_five_peaks();
+    initialize_fft();
     wait_menu();
     esp_restart();
 }
