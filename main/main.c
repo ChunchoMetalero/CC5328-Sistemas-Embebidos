@@ -493,8 +493,14 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc) {
     bme_i2c_read(I2C_NUM_0, &addr_par_t2_msb, par_t + 3, 1);
     bme_i2c_read(I2C_NUM_0, &addr_par_t3_lsb, par_t + 4, 1);
 
+    // Reminder: en el datasheet aparece LSB / MSB, 
+    // cuando el orden real es MSB / LSB
+
+    // 0xEA - 0xE9
     par_t1 = (par_t[1] << 8) | par_t[0];
+    // 0x8B - 0x8A
     par_t2 = (par_t[3] << 8) | par_t[2];
+    // 0x8C
     par_t3 = par_t[4];
 
     // Se obtienen los parametros de calibracion de la presion
@@ -531,15 +537,25 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc) {
     bme_i2c_read(I2C_NUM_0, &addr_par_p9_msb, par_p + 14, 1);
     bme_i2c_read(I2C_NUM_0, &addr_par_p10_lsb, par_p + 15, 1);
 
+    // 0x8F - 0x8E
     par_p1 = (par_p[1] << 8) | par_p[0];
+    // 0x91 - 0x90
     par_p2 = (par_p[3] << 8) | par_p[2];
+    // 0x92
     par_p3 = par_p[4];
+    // 0x95 - 0x94
     par_p4 = (par_p[6] << 8) | par_p[5];
+    // 0x96 - 0x97
     par_p5 = (par_p[8] << 8) | par_p[7];
+    // 0x99
     par_p6 = par_p[9];
+    // 0x98
     par_p7 = par_p[10];
+    // 0x9D - 0x9D
     par_p8 = (par_p[12] << 8) | par_p[11];
+    // 0x9F - 0x9E
     par_p9 = (par_p[14] << 8) | par_p[13];
+    // 0xA0
     par_p10 = par_p[15];
 
     uint8_t addr_par_h1_lsb = 0xE2, addr_par_h1_msb = 0xE3;
@@ -564,14 +580,23 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc) {
     bme_i2c_read(I2C_NUM_0, &addr_par_h6_lsb, par_h + 7, 1);
     bme_i2c_read(I2C_NUM_0, &addr_par_h7_lsb, par_h + 8, 1);
 
+    // 0xE3 - 0xE2<3:0> (del bit 3 al bit 0)
     par_h1 = (par_h[1] << 8) | (par_h[0] & 0b00001111);
+    // 0xE1 - 0xE2<7:4>
     par_h2 = (par_h[3] << 8) | (par_h[2] & 0b11110000);
+    // 0xE4
     par_h3 = par_h[4];
+    // 0xE5
     par_h4 = par_h[5];
+    // 0xE6
     par_h5 = par_h[6];
+    // 0xE7
     par_h6 = par_h[7];
+    // 0xE8
     par_h7 = par_h[8];
 
+
+    // Cálculo GAS
     uint8_t addr_par_g1_lsb = 0xED;
     uint8_t addr_par_g2_lsb = 0xEB, addr_par_g2_msb = 0xEC;
     uint8_t addr_par_g3_lsb = 0xEE;
@@ -581,9 +606,10 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc) {
     uint8_t par_g[4];
 
     bme_i2c_read(I2C_NUM_0, &addr_par_g1_lsb, par_g, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_g2_lsb, par_g, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_g2_msb, par_g, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_g3_lsb, par_g, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_g2_lsb, par_g + 1, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_g2_msb, par_g + 2, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_g3_lsb, par_g + 3, 1);
+
 
     par_g1 = par_g[0];
     par_g2 = (par_g[2] << 8) | par_g[1];
@@ -643,12 +669,18 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc) {
     calc_hum = (var3_h + var6_h) >> 12;
     calc_hum = (((var3_h + var6_h) >> 10) * ((int32_t) 1000)) >> 12;
 
-    // Calculo de la concentracion
+    // Calculo de la concentracion de CO
     uint32_t var1_g, var2_g, var3_g, var4_g, var5_g;
 
     sensor_data.calc_temp = calc_temp;
     sensor_data.press_comp = calc_press;
     sensor_data.hum_comp = calc_hum;
+
+
+    adc_gas_res_low = (uint16_t)((uint32_t)buff[13] * 4 | (((uint32_t)buff[14]) / 64));
+    adc_gas_res_high = (uint16_t)((uint32_t)buff[15] * 4 | (((uint32_t)buff[16]) / 64));
+
+
 }
 
 void bme_get_mode(void) {
