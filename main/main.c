@@ -610,9 +610,11 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc) {
     bme_i2c_read(I2C_NUM_0, &addr_par_g2_msb, par_g + 2, 1);
     bme_i2c_read(I2C_NUM_0, &addr_par_g3_lsb, par_g + 3, 1);
 
-
+    // 0xED
     par_g1 = par_g[0];
+    // 0xEC - 0xEB
     par_g2 = (par_g[2] << 8) | par_g[1];
+    // 0xEE
     par_g3 = par_g[3]
 
     // Calculo de la temperatura
@@ -675,12 +677,6 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc) {
     sensor_data.calc_temp = calc_temp;
     sensor_data.press_comp = calc_press;
     sensor_data.hum_comp = calc_hum;
-
-
-    adc_gas_res_low = (uint16_t)((uint32_t)buff[13] * 4 | (((uint32_t)buff[14]) / 64));
-    adc_gas_res_high = (uint16_t)((uint32_t)buff[15] * 4 | (((uint32_t)buff[16]) / 64));
-
-
 }
 
 void bme_get_mode(void) {
