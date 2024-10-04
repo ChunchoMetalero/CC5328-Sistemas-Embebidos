@@ -615,7 +615,7 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc, u
     // 0xEC - 0xEB
     par_g2 = (par_g[2] << 8) | par_g[1];
     // 0xEE
-    par_g3 = par_g[3]
+    par_g3 = par_g[3];
 
     // Calculo de la temperatura
     int64_t var1_t;
@@ -672,11 +672,21 @@ void bme_temp_celsius(uint32_t temp_adc, uint32_t press_adc, uint32_t hum_adc, u
     calc_hum = (((var3_h + var6_h) >> 10) * ((int32_t) 1000)) >> 12;
 
     // Calculo de la concentracion de CO
-    uint32_t var1_g, var2_g, var3_g, var4_g, var5_g;
+
+    int calc_gas_res;
+    int calc_gas;
+
+    uint32_t var1_g = UINT32_C(262144) >> gas_range;
+    int32_t var2_g = (int32_t) gas_adc - INT32_C(512);
+    var2_g *= INT32_C(3);
+    var2_g = INT32_C(4096) + var2_g;
+    calc_gas_res = (UINT32_C(10000) * var1_g) / (uint32_t)var2_g;
+    calc_gas = calc_gas_res * 100;
 
     sensor_data.calc_temp = calc_temp;
     sensor_data.press_comp = calc_press;
     sensor_data.hum_comp = calc_hum;
+    sensor_data.gas_comp = calc_gas;
 }
 
 void bme_get_mode(void) {
