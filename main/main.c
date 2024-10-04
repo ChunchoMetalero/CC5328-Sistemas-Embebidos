@@ -913,12 +913,12 @@ void send_window_data(void){
             data[5] = sensor_data.rms_hum;
 
             // Envio metrica FFT
-            data[6] = sensor_data.fft_im_t[i];
-            data[7] = sensor_data.fft_im_p[i];
-            data[8] = sensor_data.fft_im_h[i];
-            data[9] = sensor_data.fft_re_t[i];
-            data[10] = sensor_data.fft_re_p[i];
-            data[11] = sensor_data.fft_re_h[i];
+            data[6] = sensor_data.fft_re_t[i];
+            data[7] = sensor_data.fft_re_p[i];
+            data[8] = sensor_data.fft_re_h[i];
+            data[9] = sensor_data.fft_im_t[i];
+            data[10] = sensor_data.fft_im_p[i];
+            data[11] = sensor_data.fft_im_h[i];
 
             // Envio metrica fivepeaks
             // Temperatura
