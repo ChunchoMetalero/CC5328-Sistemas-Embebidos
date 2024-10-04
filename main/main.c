@@ -69,7 +69,7 @@ typedef struct {
     int temperature;
 } TempData;
 
-int window_size = 56;
+int window_size = 15;
 
 SensorData sensor_data;
 
@@ -615,8 +615,12 @@ void bme_humidity(int hum_adc) {
     bme_i2c_read(I2C_NUM_0, &addr_par_h6_lsb, par_h + 7, 1);
     bme_i2c_read(I2C_NUM_0, &addr_par_h7_lsb, par_h + 8, 1);
 
-    par_h1 = ((par_h[0] & 0x0F) << 8) | par_h[1];  
-    par_h2 = ((par_h[0] & 0xF0) >> 4) | (par_h[2] << 4);  
+
+    // 11110000 = 0xf0
+    // 1111 = 0x0f
+
+    par_h1 = (par_h[0] & 0x0F) | (uint16_t)(par_h[1] << 4);  
+    par_h2 = ((par_h[0] & 0xF0) >> 4) | (uint16_t)(par_h[2] << 4);  
     par_h3 = par_h[3];
     par_h4 = par_h[4];  
     par_h5 = par_h[5];  
@@ -706,12 +710,65 @@ void bme_read_data() {
         sensor_data.temperature_window[i] = (float)temp / 100;
         sensor_data.pressure_window[i] = (float)press / 100;
         sensor_data.humidity_window[i] = (float)humidity / 1000;
+        
 
-        printf("Temperatura: %f\n", sensor_data.temperature_window[i]);
-        printf("Presion: %f\n", sensor_data.pressure_window[i]);
-        printf("Humidity: %f\n", sensor_data.humidity_window[i]);
     }
 }
+
+void send_signal(void) {
+    uart_write_bytes(UART_NUM, "Ready", 6);
+}
+
+void send_window_data(void){
+    bme_read_data();
+    
+
+    char dataResponse1[6];
+    while (1)
+    {
+        int rLen = serial_read(dataResponse1, 6);
+        if (rLen > 0)
+        {
+            if (strcmp(dataResponse1, "BEGIN") == 0)
+            {
+                send_signal();
+                break;
+            }
+        }
+    }
+
+    // Data sending, can be stopped receiving an END between sendings
+    char dataResponse2[4];
+    while (1)
+    {
+        float data[3];
+
+            data[0] = sensor_data.temperature_window[0];
+            data[1] = sensor_data.pressure_window[0];
+            data[2] = sensor_data.humidity_window[0];
+        
+            
+
+            const char* dataToSend = (const char*)data;
+            int len = sizeof(float) * 3;
+
+            uart_write_bytes(UART_NUM, dataToSend, len);
+        
+        
+
+        int rLen = serial_read(dataResponse2, 4);
+        if (rLen > 0)
+        {
+            if (strcmp(dataResponse2, "END") == 0)
+            {
+                send_signal();
+                break;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(50));  // Delay for 1 second
+    }
+}
+
 
 
 // ------------ App ------------ //
@@ -757,6 +814,36 @@ int close_connection(void) {
     return 0;
 }
 
+
+
+void wait_signal(void) {
+    while(1){
+        char dataResponse[6];
+        int rlen = serial_read(dataResponse,6);
+
+        if (rlen > 0) {
+            if (strcmp (dataResponse, "BEGIN") == 0) {
+                break;
+            }
+        }
+    }
+}
+
+void send_clean_signal(void) {
+    uart_write_bytes(UART_NUM, "Clean", 6);
+    while(1){
+        char dataResponse[8];
+        int rlen = serial_read(dataResponse,8);
+
+        if (rlen > 0) {
+            if (strcmp (dataResponse, "Cleaned") == 0) {
+                break;
+            }
+        }
+    }
+}
+
+
 int initilize_esp_bme(void) {
     ESP_ERROR_CHECK(sensor_init());
     bme_get_chipid();
@@ -771,5 +858,9 @@ int initilize_esp_bme(void) {
 void app_main(void) {
     initilize_esp_bme();
     create_window_data();
+    uart_setup(); 
     bme_read_data();
+    send_clean_signal();
+    send_window_data();
+    esp_restart();
 }
