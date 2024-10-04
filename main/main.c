@@ -814,7 +814,7 @@ void calculate_rms(void) {
 int close_connection(void) {
     free(sensor_data.temperature_window);
     free(sensor_data.pressure_window);
-    free(sensor_data.humidity_window)
+    free(sensor_data.humidity_window);
     return 0;
 }
 
