@@ -6,6 +6,14 @@ from struct import pack, unpack
 PORT = 'COM3'  # Esto depende del sistema operativo
 BAUD_RATE = 115200  # Debe coincidir con la configuracion de la ESP32
 
+fft_re_t = []
+fft_re_p = []
+fft_re_h = []
+
+fft_im_t = []
+fft_im_p = []
+fft_im_h = []
+
 # Se abre la conexion serial
 ser = serial.Serial(PORT, BAUD_RATE, timeout = 1)
 
@@ -23,21 +31,33 @@ def receive_response():
 
 # Antiguo receive_data_size
 #
+def receive_data_size():
+    """ Funcion que recibe tres floats (fff) de la ESP32 
+    y los imprime en consola """
+    data = receive_response()
+    data = unpack("27f", data)
+    print("Temperature: ", data[0])
+    print("Pressure: ", data[1])
+    print("Humidity: ", data[2])
+
+    global fft_re_t, fft_re_p, fft_re_h, fft_im_t, fft_im_p, fft_re_h
+
+    fft_re_t.append(data[6])
+    fft_re_p.append(data[7])
+    fft_re_h.append(data[8])
+
+    fft_im_t.append(data[9])
+    fft_im_p.append(data[10])
+    fft_im_h.append(data[11])
+
+    return data
+
 # def receive_data_size():
 #     """ Funcion que recibe tres floats (fff) de la ESP32 
 #     y los imprime en consola """
 #     data = receive_response()
 #     data = unpack("ffff", data)
-#     print("Temperature: ", data[0])
-#     print("Pressure: ", data[1])
 #     return data
-
-def receive_data_size():
-    """ Funcion que recibe tres floats (fff) de la ESP32 
-    y los imprime en consola """
-    data = receive_response()
-    data = unpack("ffff", data)
-    return data
 
 def send_end_message():
     """ Funcion para enviar un mensaje de finalizacion a la ESP32 """
@@ -74,7 +94,7 @@ def receive_window_data():
     while True:
         if ser.in_waiting > 0:
             try:
-                message = receive_data()
+                message = receive_data_size()
             except:
                 #print('Error en leer mensaje')
                 continue
@@ -84,8 +104,48 @@ def receive_window_data():
             finally:
                 if counter == window_size:
                     print()
-                    print("Temperature Rms: ", message[2])
-                    print("Pressure Rms: ", message[3])
+                    print("Temperature Rms: ", message[3])
+                    print("Pressure Rms: ", message[4])
+                    print("Humidity Rms:", message[5])
+
+                    print("Temperature five peaks:")
+                    for x in range(5):
+                        print(message[x + 12])
+
+                    print("Pressure five peaks:")
+                    for x in range(5):
+                        print(message[x + 17])
+
+                    print("Humidity five peaks:")
+                    for x in range(5):
+                        print(message[x + 22])
+
+                    global fft_re_t, fft_re_p, fft_re_h, fft_im_t, fft_im_p, fft_im_h
+
+                    print("Temperature FFT real part:")
+                    for x in range(len(fft_re_t)):
+                        print(fft_re_t[x])
+
+                    print("Temperature FFT imaginary part:")
+                    for x in range(len(fft_im_t)):
+                        print(fft_im_t[x])
+
+                    print("Pressure FFT real part:")
+                    for x in range(len(fft_re_p)):
+                        print(fft_re_p[x])
+
+                    print("Pressure FFT imaginary part:")
+                    for x in range(len(fft_im_p)):
+                        print(fft_im_p[x])
+
+                    print("Humidity FFT real part:")
+                    for x in range(len(fft_re_h)):
+                        print(fft_re_h[x])
+
+                    print("Humidity FFT imaginary part:")
+                    for x in range(len(fft_im_h)):
+                        print(fft_im_h[x])
+
                     print('Lecturas listas!')
                     print()
                     # Se envia el mensaje de termino de comunicacion
