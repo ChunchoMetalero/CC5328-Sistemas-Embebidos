@@ -52,15 +52,19 @@ typedef struct {
     int calc_temp;
     int calc_press;
     int calc_hum;
+    int calc_gas;
 
     // RMS 
     float rms_temp;
     float rms_press;
+    float rms_hum;
+    float rms_gas;
 
     // Ventanas de datos
     float *temperature_window;
     float *pressure_window;
     float *humidity_window;
+    float *gas_window;
 } SensorData;
 
 typedef struct {
@@ -648,6 +652,45 @@ void bme_humidity(int hum_adc) {
     sensor_data.calc_hum = calc_hum;
 }
 
+void bme_gas_resistance(int gas_adc, int gas_range){
+
+    // Cálculo GAS
+    uint8_t addr_par_g1_lsb = 0xED;
+    uint8_t addr_par_g2_lsb = 0xEB, addr_par_g2_msb = 0xEC;
+    uint8_t addr_par_g3_lsb = 0xEE;
+
+    uint32_t par_g1, par_g2, par_g3;
+
+    uint8_t par_g[4];
+
+    bme_i2c_read(I2C_NUM_0, &addr_par_g1_lsb, par_g, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_g2_lsb, par_g + 1, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_g2_msb, par_g + 2, 1);
+    bme_i2c_read(I2C_NUM_0, &addr_par_g3_lsb, par_g + 3, 1);
+
+    // 0xED
+    par_g1 = par_g[0];
+    // 0xEC - 0xEB
+    par_g2 = (par_g[2] << 8) | par_g[1];
+    // 0xEE
+    par_g3 = par_g[3];
+
+    // Calculo de la concentracion de CO
+
+    int calc_gas_res;
+    int calc_gas;
+
+    uint32_t var1_g = UINT32_C(262144) >> gas_range;
+    int32_t var2_g = (int32_t) gas_adc - INT32_C(512);
+    var2_g *= INT32_C(3);
+    var2_g = INT32_C(4096) + var2_g;
+    calc_gas_res = (UINT32_C(10000) * var1_g) / (uint32_t)var2_g;
+    calc_gas = calc_gas_res * 100;
+
+    sensor_data.calc_gas = calc_gas;
+}
+
+
 void bme_get_mode(void) {
     uint8_t reg_mode = 0x74;
     uint8_t tmp;
@@ -671,10 +714,17 @@ void bme_read_data() {
     uint8_t forced_temp_addr[] = {0x22, 0x23, 0x24};
     uint8_t forced_press_addr[] = {0x1F, 0x20, 0x21};
     uint8_t forced_hum_addr[] = {0x25, 0x26};
+
+    uint8_t forced_gas_addr[] = {0x2C, 0x2D};
+    uint8_t forced_gas_range_addr[] = {0x2D};
+
     for (int i = 0; i < window_size; i++) {
         uint32_t temp_adc = 0;
         uint32_t press_adc = 0;
         uint32_t hum_adc = 0;   
+        uint32_t gas_adc = 0;
+        uint32_t gas_range = 0;
+
         bme_forced_mode();
         // Datasheet[41]
         // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=41
@@ -698,21 +748,35 @@ void bme_read_data() {
         bme_i2c_read(I2C_NUM_0, &forced_hum_addr[1], &tmp3, 1);
         hum_adc = hum_adc | tmp3;
 
+        // Gas read
+        bme_i2c_read(I2C_NUM_0, &forced_gas_addr[0], &tmp, 1);
+        gas_adc = gas_adc | tmp << 12;
+        bme_i2c_read(I2C_NUM_0, &forced_gas_addr[1], &tmp, 1);
+        gas_adc = gas_adc | tmp << 4;
+
+        // Gas range read
+        bme_i2c_read(I2C_NUM_0, &forced_gas_range_addr[0], &tmp, 1);
+        gas_range = tmp << 12;
+
         bme_temp_celsius(temp_adc);
         bme_press_pascal(press_adc);
         bme_humidity(hum_adc);
+        bme_gas_resistance(gas_adc, gas_range);
 
         uint32_t temp = sensor_data.calc_temp;
         uint32_t press = sensor_data.calc_press;
         uint32_t humidity = sensor_data.calc_hum;
+        uint32_t gas = sensor_data.calc_gas;
 
         sensor_data.temperature_window[i] = (float)temp / 100;
         sensor_data.pressure_window[i] = (float)press / 100;
         sensor_data.humidity_window[i] = (float)humidity / 1000;
+        sensor_data.gas_window[i] = (float)gas / 1000;
 
         printf("Temperatura: %f\n", sensor_data.temperature_window[i]);
         printf("Presion: %f\n", sensor_data.pressure_window[i]);
         printf("Humedad: %f\n", sensor_data.humidity_window[i]);
+        printf("Gas: %f\n", sensor_data.gas_window[i]);
         
         
 
@@ -774,12 +838,12 @@ void send_window_data(void){
 }
 
 
-
 // ------------ App ------------ //
 int create_window_data(){
     sensor_data.temperature_window = (float *)malloc(sizeof(float) * window_size);
     sensor_data.pressure_window = (float *)malloc(sizeof(float) * window_size);
     sensor_data.humidity_window = (float *)malloc(sizeof(float) * window_size);
+    sensor_data.gas_window = (float *)malloc(sizeof(float) * window_size);
     if (sensor_data.temperature_window == NULL || sensor_data.pressure_window == NULL){
         return 1;
     }
@@ -792,6 +856,7 @@ int change_window_size(int new_size){
     sensor_data.temperature_window = (float *)realloc(sensor_data.temperature_window, sizeof(float) * new_size);
     sensor_data.pressure_window = (float *)realloc(sensor_data.pressure_window, sizeof(float) * new_size);
     sensor_data.humidity_window = (float *)realloc(sensor_data.humidity_window, sizeof(float) * new_size);
+    sensor_data.gas_window = (float *)realloc(sensor_data.gas_window, sizeof(float) * new_size);
     if (sensor_data.temperature_window == NULL || sensor_data.pressure_window == NULL){
         return 1;
     }
