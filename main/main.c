@@ -629,24 +629,24 @@ void bme_humidity(int hum_adc) {
 
     int32_t var1, var2, var3, var4, var5, var6;
     int32_t temp_scaled;
-    int calc_hum;
+    int32_t calc_hum;
 
-    temp_scaled = (int32_t)temp_data.temperature;
-    var1 = (int32_t)hum_adc - (int32_t)((int32_t)par_h1 << 4) -
-        (((temp_scaled * (int32_t)par_h3) / ((int32_t)100)) >> 1);
-    var2 = ((int32_t)par_h2 * (((temp_scaled *
-        (int32_t)par_h4) / ((int32_t)100)) +
-        (((temp_scaled * ((temp_scaled * (int32_t)par_h5) /
-        ((int32_t)100))) >> 6) / ((int32_t)100)) + ((int32_t)(1 << 14)))) >> 10;
+    printf(temp_data.t_fine);
 
+    temp_scaled = (((int32_t)temp_data.t_fine * 5) + 128) >> 8;
+    var1 = (int32_t)(hum_adc - ((int32_t)((int32_t)par_h1 * 16))) -
+           (((temp_scaled * (int32_t)par_h3) / ((int32_t)100)) >> 1);
+    var2 =
+        ((int32_t)par_h2 *
+         (((temp_scaled * (int32_t)par_h4) / ((int32_t)100)) +
+          (((temp_scaled * ((temp_scaled * (int32_t)par_h5) / ((int32_t)100))) >> 6) / ((int32_t)100)) +
+          (int32_t)(1 << 14))) >> 10;
     var3 = var1 * var2;
-    var4 = (((int32_t)par_h6 << 7) +
-        ((temp_scaled * (int32_t)par_h7) / ((int32_t)100))) >> 4;
+    var4 = (int32_t)par_h6 << 7;
+    var4 = ((var4) + ((temp_scaled * (int32_t)par_h7) / ((int32_t)100))) >> 4;
     var5 = ((var3 >> 14) * (var3 >> 14)) >> 10;
     var6 = (var4 * var5) >> 1;
-    calc_hum = (var3 + var6) >> 12;
-    calc_hum = (((var3 + var6) >> 10) * ((int32_t) 1000)) >> 12;
-    sensor_data.calc_hum = calc_hum;
+    calc_hum = (((var3 + var6) >> 10) * ((int32_t)1000)) >> 12;
 }
 
 void bme_get_mode(void) {
@@ -710,6 +710,11 @@ void bme_read_data() {
         sensor_data.temperature_window[i] = (float)temp / 100;
         sensor_data.pressure_window[i] = (float)press / 100;
         sensor_data.humidity_window[i] = (float)humidity / 1000;
+
+        printf("Temperatura: %f\n", sensor_data.temperature_window[i]);
+        printf("Presion: %f\n", sensor_data.pressure_window[i]);
+        printf("Humedad: %f\n", sensor_data.humidity_window[i]);
+        
         
 
     }
@@ -858,9 +863,5 @@ int initilize_esp_bme(void) {
 void app_main(void) {
     initilize_esp_bme();
     create_window_data();
-    uart_setup(); 
     bme_read_data();
-    send_clean_signal();
-    send_window_data();
-    esp_restart();
 }
