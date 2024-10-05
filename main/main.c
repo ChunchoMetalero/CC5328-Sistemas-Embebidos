@@ -620,18 +620,16 @@ void bme_humidity(int hum_adc) {
     // 1111 = 0x0f
 
     par_h1 = (par_h[0] & 0x0F) | (uint16_t)(par_h[1] << 4);  
-    par_h2 = ((par_h[0] & 0xF0) >> 4) | (uint16_t)(par_h[2] << 4);  
-    par_h3 = par_h[3];
-    par_h4 = par_h[4];  
-    par_h5 = par_h[5];  
-    par_h6 = par_h[6];  
-    par_h7 = par_h[7];  
+    par_h2 = ((par_h[2] & 0xF0) >> 4) | (uint16_t)(par_h[3] << 4);  
+    par_h3 = par_h[4];
+    par_h4 = par_h[5];  
+    par_h5 = par_h[6];  
+    par_h6 = par_h[7];  
+    par_h7 = par_h[8];  
 
     int32_t var1, var2, var3, var4, var5, var6;
     int32_t temp_scaled;
     int32_t calc_hum;
-
-    printf(temp_data.t_fine);
 
     temp_scaled = (((int32_t)temp_data.t_fine * 5) + 128) >> 8;
     var1 = (int32_t)(hum_adc - ((int32_t)((int32_t)par_h1 * 16))) -
@@ -647,6 +645,7 @@ void bme_humidity(int hum_adc) {
     var5 = ((var3 >> 14) * (var3 >> 14)) >> 10;
     var6 = (var4 * var5) >> 1;
     calc_hum = (((var3 + var6) >> 10) * ((int32_t)1000)) >> 12;
+    sensor_data.calc_hum = calc_hum;
 }
 
 void bme_get_mode(void) {
