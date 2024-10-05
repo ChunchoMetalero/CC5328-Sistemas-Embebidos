@@ -22,20 +22,22 @@ def receive_response():
     return response
 
 def receive_data():
-    """ Funcion que recibe tres floats (fff) de la ESP32 
-    y los imprime en consola """
     data = receive_response()
+    print(data)
     data = unpack("ffff", data)
     print("Temperature: ", data[0])
     print("Pressure: ", data[1])
     return data
 
 def receive_data_size():
-    """ Funcion que recibe tres floats (fff) de la ESP32 
-    y los imprime en consola """
     data = receive_response()
-    data = unpack("ffff", data)
+    print(data)
+    data = unpack("f", data)
     return data
+
+def send_begin_message():
+    message = pack('6s','BEGIN\0'.encode())
+    send_message(message)
 
 def send_end_message():
     """ Funcion para enviar un mensaje de finalizacion a la ESP32 """
@@ -65,7 +67,6 @@ def receive_handshake():
         data = data.decode('utf-8', errors='ignore').strip()
     return
 
-
 def receive_window_data():
 # Se lee data por la conexion serial
     counter = 0
@@ -94,10 +95,8 @@ def receive_window_size():
     global window_size
 
     print("Recibiendo tamaño de ventana de datos...")
-    message = pack('6s','ready\0'.encode())
-    send_message(message)
+    send_begin_message()
 
-    time.sleep(1)
     counter = 0
     while True:
         if ser.in_waiting > 0:
@@ -164,10 +163,14 @@ def menu():
             send_message(message1)
             print('Solicitando ventana de datos...')
             print()
-            time.sleep(1)
-            message2 = pack('6s','BEGIN\0'.encode())
-            send_message(message2)
-            time.sleep(3)
+            message = receive_response()
+            print(message)
+            while ('Ready' not in message.decode('utf-8', errors='ignore').strip()):
+                message = receive_response()
+                print(message)
+                send_begin_message() 
+                
+
             receive_window_data()
             send_end_message()
             
