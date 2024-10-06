@@ -52,32 +52,37 @@ typedef struct {
     int calc_temp;
     int calc_press;
     int calc_hum;
-    int calc_gas;
+
+    float t_fine;
 
     // RMS 
     float rms_temp;
     float rms_press;
     float rms_hum;
-    float rms_gas;
 
     // Ventanas de datos
     float *temperature_window;
     float *pressure_window;
     float *humidity_window;
-    float *gas_window;
+
+    // Five peaks
+    float five_peaks_temp[5];
+    float five_peaks_press[5];
+    float five_peaks_hum[5];
+
+    // FFT
+    float *fft_re_t;
+    float *fft_re_p;
+    float *fft_re_h;
+
+    float *fft_im_t;
+    float *fft_im_p;
+    float *fft_im_h;
 } SensorData;
 
-typedef struct {
-    // Datos de temperatura
-    float t_fine;
-    int temperature;
-} TempData;
-
-int window_size = 15;
+int window_size = 6;
 
 SensorData sensor_data;
-
-TempData temp_data;
 
 // -------------------- COM Serial --------------------- //
 
@@ -519,7 +524,6 @@ void bme_temp_celsius(uint32_t temp_adc) {
     t_fine = (int32_t)(var2_t + var3_t);
     calc_temp = (((t_fine * 5) + 128) >> 8);
     sensor_data.calc_temp = calc_temp;
-    temp_data.temperature = calc_temp;
 
 }
 
@@ -573,7 +577,7 @@ void bme_press_pascal(uint32_t press_adc) {
     int64_t var1_p, var2_p, var3_p;
     int calc_press;
 
-    var1_p = ((int32_t)temp_data.t_fine >> 1) - 64000;  
+    var1_p = ((int32_t)sensor_data.t_fine >> 1) - 64000;  
     var2_p = ((((var1_p >> 2) * (var1_p >> 2)) >> 11) * (int32_t)par_p6) >> 2;  
     var2_p = var2_p + ((var1_p * (int32_t)par_p5) << 1);   
     var2_p = (var2_p >> 2) + ((int32_t)par_p4 << 16);  
@@ -635,7 +639,7 @@ void bme_humidity(int hum_adc) {
     int32_t temp_scaled;
     int32_t calc_hum;
 
-    temp_scaled = (((int32_t)temp_data.t_fine * 5) + 128) >> 8;
+    temp_scaled = (((int32_t)sensor_data.t_fine * 5) + 128) >> 8;
     var1 = (int32_t)(hum_adc - ((int32_t)((int32_t)par_h1 * 16))) -
            (((temp_scaled * (int32_t)par_h3) / ((int32_t)100)) >> 1);
     var2 =
@@ -651,45 +655,6 @@ void bme_humidity(int hum_adc) {
     calc_hum = (((var3 + var6) >> 10) * ((int32_t)1000)) >> 12;
     sensor_data.calc_hum = calc_hum;
 }
-
-void bme_gas_resistance(int gas_adc, int gas_range){
-
-    // Cálculo GAS
-    uint8_t addr_par_g1_lsb = 0xED;
-    uint8_t addr_par_g2_lsb = 0xEB, addr_par_g2_msb = 0xEC;
-    uint8_t addr_par_g3_lsb = 0xEE;
-
-    uint32_t par_g1, par_g2, par_g3;
-
-    uint8_t par_g[4];
-
-    bme_i2c_read(I2C_NUM_0, &addr_par_g1_lsb, par_g, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_g2_lsb, par_g + 1, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_g2_msb, par_g + 2, 1);
-    bme_i2c_read(I2C_NUM_0, &addr_par_g3_lsb, par_g + 3, 1);
-
-    // 0xED
-    par_g1 = par_g[0];
-    // 0xEC - 0xEB
-    par_g2 = (par_g[2] << 8) | par_g[1];
-    // 0xEE
-    par_g3 = par_g[3];
-
-    // Calculo de la concentracion de CO
-
-    int calc_gas_res;
-    int calc_gas;
-
-    uint32_t var1_g = UINT32_C(262144) >> gas_range;
-    int32_t var2_g = (int32_t) gas_adc - INT32_C(512);
-    var2_g *= INT32_C(3);
-    var2_g = INT32_C(4096) + var2_g;
-    calc_gas_res = (UINT32_C(10000) * var1_g) / (uint32_t)var2_g;
-    calc_gas = calc_gas_res * 100;
-
-    sensor_data.calc_gas = calc_gas;
-}
-
 
 void bme_get_mode(void) {
     uint8_t reg_mode = 0x74;
@@ -709,6 +674,8 @@ void bme_read_data() {
     uint8_t tmp;
     uint8_t tmp2;
     uint8_t tmp3;
+    uint8_t tmp4;
+    uint8_t tmp5;
 
     // Se obtienen los datos de temperatura
     uint8_t forced_temp_addr[] = {0x22, 0x23, 0x24};
@@ -729,6 +696,7 @@ void bme_read_data() {
         // Datasheet[41]
         // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=41
 
+        // Temperature read
         bme_i2c_read(I2C_NUM_0, &forced_temp_addr[0], &tmp, 1);
         temp_adc = temp_adc | tmp << 12;
         bme_i2c_read(I2C_NUM_0, &forced_temp_addr[1], &tmp, 1);
@@ -736,6 +704,7 @@ void bme_read_data() {
         bme_i2c_read(I2C_NUM_0, &forced_temp_addr[2], &tmp, 1);
         temp_adc = temp_adc | (tmp & 0xf0) >> 4;
 
+        // Pressure read
         bme_i2c_read(I2C_NUM_0, &forced_press_addr[0], &tmp2, 1);
         press_adc = press_adc | tmp2 << 12;
         bme_i2c_read(I2C_NUM_0, &forced_press_addr[1], &tmp2, 1);
@@ -743,44 +712,41 @@ void bme_read_data() {
         bme_i2c_read(I2C_NUM_0, &forced_press_addr[2], &tmp2, 1);
         press_adc = press_adc | (tmp2 & 0xf0) >> 4;
 
+        // Humidity read
         bme_i2c_read(I2C_NUM_0, &forced_hum_addr[0], &tmp3, 1);
         hum_adc = hum_adc | tmp3 << 8;
         bme_i2c_read(I2C_NUM_0, &forced_hum_addr[1], &tmp3, 1);
         hum_adc = hum_adc | tmp3;
 
         // Gas read
-        bme_i2c_read(I2C_NUM_0, &forced_gas_addr[0], &tmp, 1);
+        bme_i2c_read(I2C_NUM_0, &forced_gas_addr[0], &tmp4, 1);
         gas_adc = gas_adc | tmp << 12;
-        bme_i2c_read(I2C_NUM_0, &forced_gas_addr[1], &tmp, 1);
+        bme_i2c_read(I2C_NUM_0, &forced_gas_addr[1], &tmp4, 1);
         gas_adc = gas_adc | tmp << 4;
 
         // Gas range read
-        bme_i2c_read(I2C_NUM_0, &forced_gas_range_addr[0], &tmp, 1);
+        bme_i2c_read(I2C_NUM_0, &forced_gas_range_addr[0], &tmp5, 1);
         gas_range = tmp << 12;
 
         bme_temp_celsius(temp_adc);
         bme_press_pascal(press_adc);
         bme_humidity(hum_adc);
-        bme_gas_resistance(gas_adc, gas_range);
 
         uint32_t temp = sensor_data.calc_temp;
         uint32_t press = sensor_data.calc_press;
         uint32_t humidity = sensor_data.calc_hum;
-        uint32_t gas = sensor_data.calc_gas;
 
         sensor_data.temperature_window[i] = (float)temp / 100;
         sensor_data.pressure_window[i] = (float)press / 100;
         sensor_data.humidity_window[i] = (float)humidity / 1000;
-        sensor_data.gas_window[i] = (float)gas / 1000;
 
         printf("Temperatura: %f\n", sensor_data.temperature_window[i]);
         printf("Presion: %f\n", sensor_data.pressure_window[i]);
         printf("Humedad: %f\n", sensor_data.humidity_window[i]);
-        printf("Gas: %f\n", sensor_data.gas_window[i]);
-        
-        
 
+        printf("\n");     
     }
+    
 }
 
 void send_signal(void) {
@@ -843,12 +809,29 @@ int create_window_data(){
     sensor_data.temperature_window = (float *)malloc(sizeof(float) * window_size);
     sensor_data.pressure_window = (float *)malloc(sizeof(float) * window_size);
     sensor_data.humidity_window = (float *)malloc(sizeof(float) * window_size);
-    sensor_data.gas_window = (float *)malloc(sizeof(float) * window_size);
     if (sensor_data.temperature_window == NULL || sensor_data.pressure_window == NULL){
         return 1;
     }
     return 0;
 }
+
+int initialize_fft() {
+    sensor_data.fft_re_t = (float *)malloc(sizeof(float) * window_size);
+    sensor_data.fft_re_p = (float *)malloc(sizeof(float) * window_size);
+    sensor_data.fft_re_h = (float *)malloc(sizeof(float) * window_size);
+    if (sensor_data.fft_re_t == NULL || sensor_data.fft_re_p == NULL || sensor_data.fft_re_h == NULL){
+        return 1;
+    }
+
+    sensor_data.fft_im_t = (float *)malloc(sizeof(float) * window_size);
+    sensor_data.fft_im_p = (float *)malloc(sizeof(float) * window_size);
+    sensor_data.fft_im_h = (float *)malloc(sizeof(float) * window_size);
+    if (sensor_data.fft_im_t == NULL || sensor_data.fft_im_p == NULL || sensor_data.fft_im_h == NULL){
+        return 1;
+    }
+    return 0;
+}
+
 
 int change_window_size(int new_size){
     window_size = new_size;
@@ -856,8 +839,21 @@ int change_window_size(int new_size){
     sensor_data.temperature_window = (float *)realloc(sensor_data.temperature_window, sizeof(float) * new_size);
     sensor_data.pressure_window = (float *)realloc(sensor_data.pressure_window, sizeof(float) * new_size);
     sensor_data.humidity_window = (float *)realloc(sensor_data.humidity_window, sizeof(float) * new_size);
-    sensor_data.gas_window = (float *)realloc(sensor_data.gas_window, sizeof(float) * new_size);
-    if (sensor_data.temperature_window == NULL || sensor_data.pressure_window == NULL){
+    if (sensor_data.temperature_window == NULL || sensor_data.pressure_window == NULL || sensor_data.humidity_window == NULL){
+        return 1;
+    }
+
+    sensor_data.fft_re_t = (float *)realloc(sensor_data.fft_re_t, sizeof(float) * new_size);
+    sensor_data.fft_re_p = (float *)realloc(sensor_data.fft_re_p, sizeof(float) * new_size);
+    sensor_data.fft_re_h = (float *)realloc(sensor_data.fft_re_h, sizeof(float) * new_size);
+    if (sensor_data.fft_re_t == NULL || sensor_data.fft_re_p == NULL || sensor_data.fft_re_h == NULL){
+        return 1;
+    }
+
+    sensor_data.fft_im_t = (float *)realloc(sensor_data.fft_im_t, sizeof(float) * new_size);
+    sensor_data.fft_im_p = (float *)realloc(sensor_data.fft_im_p, sizeof(float) * new_size);
+    sensor_data.fft_im_h = (float *)realloc(sensor_data.fft_im_h, sizeof(float) * new_size);
+    if (sensor_data.fft_im_t == NULL || sensor_data.fft_im_p == NULL || sensor_data.fft_im_h == NULL){
         return 1;
     }
     return 0;
@@ -866,15 +862,99 @@ int change_window_size(int new_size){
 void calculate_rms(void) {
     float sum_t = 0;
     float sum_p = 0;
+    float sum_h = 0;
+    float sum_g = 0;
     for (int i = 0; i < window_size; i++){
         sum_t += pow(sensor_data.temperature_window[i], 2);
         sum_p += pow(sensor_data.pressure_window[i], 2);
+        sum_h += pow(sensor_data.humidity_window[i], 2);
     }
     float rms_t = sqrt(sum_t / window_size);
     float rms_p = sqrt(sum_p / window_size);
+    float rms_h = sqrt(sum_h / window_size);
 
     sensor_data.rms_temp = rms_t;
     sensor_data.rms_press = rms_p;
+    sensor_data.rms_hum = rms_h;
+}
+
+//five peaks
+
+void sort_window_data(void) {
+    for (int i = 0; i < window_size; i++){
+        for (int j = i + 1; j < window_size; j++){
+            if (sensor_data.temperature_window[i] > sensor_data.temperature_window[j]){
+                float temp = sensor_data.temperature_window[i];
+                sensor_data.temperature_window[i] = sensor_data.temperature_window[j];
+                sensor_data.temperature_window[j] = temp;
+            }
+            if (sensor_data.pressure_window[i] > sensor_data.pressure_window[j]){
+                float temp = sensor_data.pressure_window[i];
+                sensor_data.pressure_window[i] = sensor_data.pressure_window[j];
+                sensor_data.pressure_window[j] = temp;
+            }
+            if (sensor_data.humidity_window[i] > sensor_data.humidity_window[j]){
+                float temp = sensor_data.humidity_window[i];
+                sensor_data.humidity_window[i] = sensor_data.humidity_window[j];
+                sensor_data.humidity_window[j] = temp;
+            }
+        }
+    }
+}
+
+void five_peaks(void) {
+    sort_window_data();
+    int contador = 0;
+    for (int i = window_size - 1; i > window_size - 6; i--){
+        sensor_data.five_peaks_temp[i] = sensor_data.temperature_window[i];
+        sensor_data.five_peaks_press[i] = sensor_data.pressure_window[i];
+        sensor_data.five_peaks_hum[i] = sensor_data.humidity_window[i];
+
+        printf("Temperatura: %f\n", sensor_data.five_peaks_temp[i]);
+        printf("Presion: %f\n", sensor_data.five_peaks_press[i]);
+        printf("Humedad: %f\n", sensor_data.five_peaks_hum[i]);
+        printf("\n");
+        contador++;
+        if(window_size < 5 && contador == window_size){
+            break;
+        }
+    }
+}
+
+// ffts
+
+/**
+ * @brief Funcion que calcula la FFT de un arreglo y guarda el resultado inplace
+ *
+ * @param array Arreglo de elementos sobre los que se quiere calcular la FFT
+ * @param size Tamano del arreglo
+ * @param array_re Direccion del arreglo donde se guardara la parte real. Debe ser de tamano size
+ * @param array_im Direccion del arreglo donde se guardara la parte imaginaria. Debe ser de tamano size
+ */
+void calcularFFT(float *array, int size, float *array_re, float *array_im) {
+    for (int k = 0; k < size; k++) {
+        float real = 0;
+        float imag = 0;
+
+        for (int n = 0; n < size; n++) {
+            float angulo = 2 * M_PI * k * n / size;
+            float cos_angulo = cos(angulo);
+            float sin_angulo = -sin(angulo);
+
+            real += array[n] * cos_angulo;
+            imag += array[n] * sin_angulo;
+        }
+        real /= size;
+        imag /= size;
+        array_re[k] = real;
+        array_im[k] = imag;
+    }
+}
+
+void calculate_fft(void) {
+    calcularFFT(sensor_data.temperature_window, window_size, sensor_data.fft_re_t, sensor_data.fft_im_t);
+    calcularFFT(sensor_data.pressure_window, window_size, sensor_data.fft_re_p, sensor_data.fft_im_p);
+    calcularFFT(sensor_data.humidity_window, window_size, sensor_data.fft_re_h, sensor_data.fft_im_h);
 }
 
 int close_connection(void) {
@@ -882,8 +962,6 @@ int close_connection(void) {
     free(sensor_data.pressure_window);
     return 0;
 }
-
-
 
 void wait_signal(void) {
     while(1){
@@ -912,7 +990,6 @@ void send_clean_signal(void) {
     }
 }
 
-
 int initilize_esp_bme(void) {
     ESP_ERROR_CHECK(sensor_init());
     bme_get_chipid();
@@ -922,10 +999,44 @@ int initilize_esp_bme(void) {
     return 0;
 }
 
-
-
 void app_main(void) {
     initilize_esp_bme();
     create_window_data();
     bme_read_data();
+    printf("\n");
+    calculate_rms();
+    initialize_fft();
+    
+    printf("RMS: \n");
+    printf("Temperatura: %f\n", sensor_data.rms_temp);
+    printf("Presion: %f\n", sensor_data.rms_press);
+    printf("Humedad: %f\n", sensor_data.rms_hum);
+    printf("\n");
+    printf("Five peaks: \n");
+    five_peaks();
+    printf("\n");
+    calculate_fft();
+    printf("FFT: \n");
+    printf("Temperatura: \n");
+    for (int i = 0; i < window_size; i++){
+        printf("Real: %f\n", sensor_data.fft_re_t[i]);
+        printf("Imaginario: %f\n", sensor_data.fft_im_t[i]);
+        printf("\n");
+    }
+
+    printf("\n");
+    printf("Presion: \n");
+    for (int i = 0; i < window_size; i++){
+        printf("Real: %f\n", sensor_data.fft_re_p[i]);
+        printf("Imaginario: %f\n", sensor_data.fft_im_p[i]);
+        printf("\n");
+    }
+    
+    printf("\n");
+    printf("Humedad: \n");
+    for (int i = 0; i < window_size; i++){
+        printf("Real: %f\n", sensor_data.fft_re_h[i]);
+        printf("Imaginario: %f\n", sensor_data.fft_im_h[i]);
+        printf("\n");
+    }
 }
