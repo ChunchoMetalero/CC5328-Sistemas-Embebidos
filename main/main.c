@@ -803,9 +803,9 @@ int compare_floats(const void *a, const void *b) {
 
 void calculate_five_peaks(void) {
 
-    float temperature_window_sorted = (float *)malloc(sizeof(float) * window_size);
-    float pressure_window_sorted = (float *)malloc(sizeof(float) * window_size);
-    float humidity_window_sorted = (float *)malloc(sizeof(float) * window_size);
+    float *temperature_window_sorted = (float *)malloc(sizeof(float) * window_size);
+    float *pressure_window_sorted = (float *)malloc(sizeof(float) * window_size);
+    float *humidity_window_sorted = (float *)malloc(sizeof(float) * window_size);
 
     for (int i = 0; i < window_size; i++) {
         temperature_window_sorted[i] = sensor_data.temperature_window[i];
@@ -885,6 +885,8 @@ int initilize_esp_bme(void) {
 void send_window_data(void){
     bme_read_data();
     calculate_rms();
+    calculate_fft();
+    calculate_five_peaks();
 
     char dataResponse1[6];
     while (1)
