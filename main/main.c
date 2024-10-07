@@ -761,6 +761,11 @@ void bme_read_data() {
         sensor_data.pressure_window[i] = (float)press / 100;
         sensor_data.humidity_window[i] = (float)humidity / 1000;
         sensor_data.gas_window[i] = gas_res;
+
+        // printf("Temperatura: %f\n", sensor_data.temperature_window[i]);
+        // printf("Presion: %f\n", sensor_data.pressure_window[i]);
+        // printf("Humedad: %f\n", sensor_data.humidity_window[i]);
+        // printf("Gas: %f\n", sensor_data.gas_window[i]);
     }
 }
 
@@ -860,10 +865,10 @@ void five_peaks(void) {
     sort_window_data();
     int contador = 0;
     for (int i = window_size - 1; i > window_size - 6; i--){
-        sensor_data.five_peaks_temp[i] = sensor_data.temperature_window[i];
-        sensor_data.five_peaks_press[i] = sensor_data.pressure_window[i];
-        sensor_data.five_peaks_hum[i] = sensor_data.humidity_window[i];
-        sensor_data.five_peaks_gas[i] = sensor_data.gas_window[i];
+        sensor_data.five_peaks_temp[contador] = sensor_data.temperature_window[i];
+        sensor_data.five_peaks_press[contador] = sensor_data.pressure_window[i];
+        sensor_data.five_peaks_hum[contador] = sensor_data.humidity_window[i];
+        sensor_data.five_peaks_gas[contador] = sensor_data.gas_window[i];
 
         contador++;
         if(window_size < 5 && contador == window_size){
@@ -1167,6 +1172,7 @@ void app_main(void) {
     send_window_size();
     create_window_data();
     initialize_fft();
+    send_window_data();
     wait_menu();
     esp_restart();    
 }

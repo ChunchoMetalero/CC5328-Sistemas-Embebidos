@@ -100,7 +100,6 @@ def receive_window_data():
                 fft_im_p.append(message[13])
                 fft_im_h.append(message[14])
                 fft_im_co.append(message[15])
-
             except:
                 #print('Error en leer mensaje')
                 continue
@@ -125,28 +124,28 @@ def receive_window_data():
                     print("Temperature: ")
                     i = 0
                     while(i < 5 and i < window_size):
-                        print("Temperature: ", message[18 + i])
+                        print("Temperature: ", message[16 + i])
                         i += 1
 
                     print()
                     print("Pressure: ")
                     i = 0
                     while(i < 5 and i < window_size):
-                        print("Pressure: ", message[23 + i])
+                        print("Pressure: ", message[21 + i])
                         i += 1
 
                     print()
                     print("Humidity: ")
                     i = 0
                     while(i < 5 and i < window_size):
-                        print("Humidity: ", message[28 + i])
+                        print("Humidity: ", message[26 + i])
                         i += 1
                     
                     print()
                     print("CO: ")
                     i = 0
                     while(i < 5 and i < window_size):
-                        print("CO: ", message[33 + i])
+                        print("CO: ", message[31 + i])
                         i += 1
                     
                     print()
@@ -258,7 +257,7 @@ def menu():
             send_message(message1)
             print('Solicitando ventana de datos...')
             print()
-            time.sleep(10)
+            time.sleep(25)
             message2 = pack('6s','BEGIN\0'.encode())
             send_message(message2)
             time.sleep(7)
