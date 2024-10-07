@@ -24,10 +24,15 @@ def receive_response():
 def receive_data():
     """ Funcion que recibe tres floats (fff) de la ESP32 
     y los imprime en consola """
+
     data = receive_response()
-    data = unpack("ffff", data)
+    data = unpack("ffffffffffffffffffffffffffffffffffff", data)
     print("Temperature: ", data[0])
     print("Pressure: ", data[1])
+    print("Humidity: ", data[2])
+    print("CO concentration: ", data[3])
+    print()
+
     return data
 
 def receive_data_size():
@@ -69,10 +74,33 @@ def receive_handshake():
 def receive_window_data():
 # Se lee data por la conexion serial
     counter = 0
+
+    fft_re_t = []
+    fft_im_t = []
+
+    fft_re_p = []
+    fft_im_p = []
+
+    fft_re_h = []
+    fft_im_h = []
+
+    fft_re_co = []
+    fft_im_co = []
+    
     while True:
         if ser.in_waiting > 0:
             try:
                 message = receive_data()
+                fft_re_t.append(message[8])
+                fft_re_p.append(message[9])
+                fft_re_h.append(message[10])
+                fft_re_co.append(message[11])
+                
+                fft_im_t.append(message[12])
+                fft_im_p.append(message[13])
+                fft_im_h.append(message[14])
+                fft_im_co.append(message[15])
+
             except:
                 #print('Error en leer mensaje')
                 continue
@@ -82,8 +110,74 @@ def receive_window_data():
             finally:
                 if counter == window_size:
                     print()
-                    print("Temperature Rms: ", message[2])
-                    print("Pressure Rms: ", message[3])
+
+                    # RMS values
+                    print("RMS values:")
+                    print("Temperature Rms: ", message[4])
+                    print("Pressure Rms: ", message[5])
+                    print("Humidity Rms: ", message[6])
+                    print("CO Rms: ", message[7])
+                    print()
+
+                    # Five peaks
+                    print("Five peaks:")
+                    print("Five peaks of each sensor:")
+                    print("Temperature: ")
+                    i = 0
+                    while(i < 5 and i < window_size):
+                        print("Temperature: ", message[18 + i])
+                        i += 1
+
+                    print()
+                    print("Pressure: ")
+                    i = 0
+                    while(i < 5 and i < window_size):
+                        print("Pressure: ", message[21 + i])
+                        i += 1
+
+                    print()
+                    print("Humidity: ")
+                    i = 0
+                    while(i < 5 and i < window_size):
+                        print("Humidity: ", message[26 + i])
+                        i += 1
+                    
+                    print()
+                    print("CO: ")
+                    i = 0
+                    while(i < 5 and i < window_size):
+                        print("CO: ", message[31 + i])
+                        i += 1
+                    
+                    print()
+                    print("FFT values:")
+                    print("Temperature: ")
+                    i = 0
+                    while(i < window_size):
+                        print("Temperature FFT: ", fft_re_t[i], fft_im_t[i])
+                        i += 1
+
+                    print()
+                    print("Pressure: Real / Imaginary")
+                    i = 0
+                    while(i < window_size):
+                        print("Pressure FFT: ", fft_re_p[i], fft_im_p[i])
+                        i += 1
+
+                    print()
+                    print("Humidity: ")
+                    i = 0
+                    while(i < window_size):
+                        print("Humidity FFT: ", fft_re_h[i], fft_im_h[i])
+                        i += 1
+
+                    print()
+                    print("CO: ")
+                    i = 0
+                    while(i < window_size):
+                        print("CO FFT: ", fft_re_co[i], fft_im_co[i])
+                        i += 1
+
                     print('Lecturas listas!')
                     print()
                     # Se envia el mensaje de termino de comunicacion
@@ -164,10 +258,10 @@ def menu():
             send_message(message1)
             print('Solicitando ventana de datos...')
             print()
-            time.sleep(1)
+            time.sleep(10)
             message2 = pack('6s','BEGIN\0'.encode())
             send_message(message2)
-            time.sleep(3)
+            time.sleep(7)
             receive_window_data()
             send_end_message()
             
