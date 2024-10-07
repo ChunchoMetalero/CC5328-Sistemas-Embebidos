@@ -132,21 +132,21 @@ def receive_window_data():
                     print("Pressure: ")
                     i = 0
                     while(i < 5 and i < window_size):
-                        print("Pressure: ", message[21 + i])
+                        print("Pressure: ", message[23 + i])
                         i += 1
 
                     print()
                     print("Humidity: ")
                     i = 0
                     while(i < 5 and i < window_size):
-                        print("Humidity: ", message[26 + i])
+                        print("Humidity: ", message[28 + i])
                         i += 1
                     
                     print()
                     print("CO: ")
                     i = 0
                     while(i < 5 and i < window_size):
-                        print("CO: ", message[31 + i])
+                        print("CO: ", message[33 + i])
                         i += 1
                     
                     print()
