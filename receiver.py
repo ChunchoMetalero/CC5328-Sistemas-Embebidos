@@ -149,7 +149,7 @@ def receive_window_data():
                         i += 1
                     
                     print()
-                    print("FFT values:")
+                    print("FFT values:   Real / Imaginary")
                     print("Temperature: ")
                     i = 0
                     while(i < window_size):
@@ -157,7 +157,7 @@ def receive_window_data():
                         i += 1
 
                     print()
-                    print("Pressure: Real / Imaginary")
+                    print("Pressure: ")
                     i = 0
                     while(i < window_size):
                         print("Pressure FFT: ", fft_re_p[i], fft_im_p[i])
@@ -257,7 +257,7 @@ def menu():
             send_message(message1)
             print('Solicitando ventana de datos...')
             print()
-            time.sleep(25)
+            time.sleep(10)
             message2 = pack('6s','BEGIN\0'.encode())
             send_message(message2)
             time.sleep(7)
